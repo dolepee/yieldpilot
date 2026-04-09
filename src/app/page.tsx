@@ -10,14 +10,14 @@ import { MandatePicker } from '@/components/MandatePicker'
 import { RecommendationCard } from '@/components/RecommendationCard'
 import { WorthItCard } from '@/components/WorthItCard'
 import { YieldStoryCard } from '@/components/YieldStoryCard'
+import { ExecutionTracker } from '@/components/ExecutionTracker'
 import { useEarnData } from '@/hooks/useEarnData'
-import { useStablecoinBalances } from '@/hooks/useStablecoinBalances'
+import { useStablecoinBalances, type TokenBalance } from '@/hooks/useStablecoinBalances'
 import { MANDATES, type MandateKey } from '@/lib/mandates'
 import { recommend, type RecommendationResult } from '@/lib/ranking'
 import { analyzeWorthIt, type WorthItAnalysis } from '@/lib/worth-it'
+import { DEMO_BALANCES } from '@/lib/demo'
 import type { ComposerQuote } from '@/lib/composer'
-
-type AppStep = 'snapshot' | 'mandate' | 'recommendation' | 'analysis' | 'executing' | 'done'
 
 export default function Home() {
   const { address, isConnected } = useAccount()
@@ -29,18 +29,24 @@ export default function Home() {
   const [worthItAnalysis, setWorthItAnalysis] = useState<WorthItAnalysis | null>(null)
   const [composerQuote, setComposerQuote] = useState<ComposerQuote | null>(null)
   const [quoteError, setQuoteError] = useState<string | null>(null)
+  const [isDemoMode, setIsDemoMode] = useState(false)
+  const [executionDone, setExecutionDone] = useState(false)
 
   const { sendTransaction, data: txHash, isPending: isSending } = useSendTransaction()
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: txHash })
 
+  // Use demo balances if in demo mode, otherwise real balances
+  const activeBalances: TokenBalance[] = isDemoMode ? DEMO_BALANCES : balanceData.balances
+  const isBalanceReady = isDemoMode || !balanceData.isLoading
+
   // Run recommendation when mandate is selected and data is ready
   const recommendation: RecommendationResult | null = useMemo(() => {
-    if (!selectedMandate || earnData.isLoading || balanceData.isLoading) return null
+    if (!selectedMandate || earnData.isLoading || !isBalanceReady) return null
     if (earnData.vaults.length === 0) return null
 
     const mandate = MANDATES[selectedMandate]
-    return recommend(earnData.vaults, mandate, balanceData.balances)
-  }, [selectedMandate, earnData.vaults, earnData.isLoading, balanceData.balances, balanceData.isLoading])
+    return recommend(earnData.vaults, mandate, activeBalances)
+  }, [selectedMandate, earnData.vaults, earnData.isLoading, activeBalances, isBalanceReady])
 
   // Fetch Composer quote and run worth-it analysis
   const handleAnalyze = useCallback(async () => {
@@ -55,7 +61,6 @@ export default function Home() {
     const vault = scored.vault
     const balance = scored.matchedBalance
 
-    // Build amount in smallest unit
     const amount = parseUnits(balance.formatted, balance.decimals).toString()
 
     const params = new URLSearchParams({
@@ -81,7 +86,6 @@ export default function Home() {
       const quote = data as ComposerQuote
       setComposerQuote(quote)
 
-      // Run worth-it analysis
       const mandate = MANDATES[selectedMandate]
       const analysis = analyzeWorthIt(quote, scored, mandate)
       setWorthItAnalysis(analysis)
@@ -105,13 +109,16 @@ export default function Home() {
     })
   }, [composerQuote, sendTransaction])
 
-  // Determine current step for UI
-  const currentStep: AppStep = isConfirmed ? 'done'
-    : (isSending || isConfirming) ? 'executing'
-    : worthItAnalysis ? 'analysis'
-    : recommendation ? 'recommendation'
-    : selectedMandate ? 'mandate'
-    : 'snapshot'
+  const handleMandateSelect = (key: MandateKey) => {
+    setSelectedMandate(key)
+    setWorthItAnalysis(null)
+    setComposerQuote(null)
+    setQuoteError(null)
+    setExecutionDone(false)
+  }
+
+  const isExecuting = isSending || isConfirming
+  const showStoryCard = (isConfirmed || executionDone) && txHash && worthItAnalysis && recommendation?.top && selectedMandate
 
   return (
     <>
@@ -134,30 +141,52 @@ export default function Home() {
         {/* Main Flow */}
         {isConnected && address ? (
           <>
+            {/* Demo mode banner */}
+            {isDemoMode && (
+              <div className="card p-3 border-yellow-500/20 flex items-center justify-between">
+                <p className="text-xs text-yellow-400">
+                  Demo mode: using simulated balances. Execution is disabled.
+                </p>
+                <button
+                  onClick={() => { setIsDemoMode(false); setSelectedMandate(null) }}
+                  className="text-xs text-gray-500 hover:text-gray-400"
+                >
+                  Exit demo
+                </button>
+              </div>
+            )}
+
             {/* Screen 1: Wallet Snapshot */}
-            <WalletSnapshot address={address} />
+            <WalletSnapshot
+              address={address}
+              onDemoMode={() => setIsDemoMode(true)}
+            />
 
             {/* Screen 2: Mandate Picker */}
-            {!balanceData.isLoading && (
+            {isBalanceReady && (activeBalances.length > 0 || isDemoMode) && (
               <MandatePicker
                 selected={selectedMandate}
-                onSelect={(key) => {
-                  setSelectedMandate(key)
-                  setWorthItAnalysis(null)
-                  setComposerQuote(null)
-                  setQuoteError(null)
-                }}
+                onSelect={handleMandateSelect}
               />
             )}
 
             {/* Screen 3: Recommendation */}
-            {recommendation && selectedMandate && !worthItAnalysis && (
+            {recommendation && selectedMandate && !worthItAnalysis && !isExecuting && !showStoryCard && (
               <RecommendationCard
                 result={recommendation}
                 mandateName={MANDATES[selectedMandate].name}
-                onExecute={recommendation.type === 'recommended' ? handleAnalyze : undefined}
+                onExecute={recommendation.type === 'recommended' && !isDemoMode ? handleAnalyze : undefined}
                 isLoadingQuote={isLoadingQuote}
               />
+            )}
+
+            {/* Demo mode note on recommendation */}
+            {recommendation && recommendation.type === 'recommended' && isDemoMode && !worthItAnalysis && (
+              <div className="card p-4 border-blue-500/10">
+                <p className="text-xs text-gray-500">
+                  In demo mode, execution is disabled. Connect a wallet with real stablecoins to execute moves.
+                </p>
+              </div>
             )}
 
             {/* Quote error */}
@@ -174,7 +203,7 @@ export default function Home() {
             )}
 
             {/* Screen 4: Worth-It Analysis */}
-            {worthItAnalysis && selectedMandate && currentStep !== 'executing' && currentStep !== 'done' && (
+            {worthItAnalysis && selectedMandate && !isExecuting && !showStoryCard && (
               <WorthItCard
                 analysis={worthItAnalysis}
                 mandateName={MANDATES[selectedMandate].name}
@@ -183,36 +212,7 @@ export default function Home() {
               />
             )}
 
-            {/* Screen 5: Execution Tracker */}
-            {(isSending || isConfirming) && (
-              <div className="card p-6">
-                <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
-                  <div>
-                    <p className="text-sm text-white font-medium">
-                      {isSending ? 'Waiting for wallet signature...' : 'Transaction confirming...'}
-                    </p>
-                    {txHash && (
-                      <p className="text-xs text-gray-500 mt-1 font-mono">{txHash}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Screen 6: Yield Story Card */}
-            {isConfirmed && txHash && worthItAnalysis && recommendation?.top && selectedMandate && (
-              <YieldStoryCard
-                analysis={worthItAnalysis}
-                mandateName={MANDATES[selectedMandate].name}
-                vaultName={recommendation.top.vault.name}
-                protocolName={recommendation.top.vault.protocol.name}
-                chainId={recommendation.top.vault.chainId}
-                txHash={txHash}
-              />
-            )}
-
-            {/* Refusal Story Card — show when mandate analysis refuses */}
+            {/* Worth-it refusal story card */}
             {worthItAnalysis && worthItAnalysis.verdict === 'refused' && selectedMandate && recommendation?.top && (
               <YieldStoryCard
                 analysis={worthItAnalysis}
@@ -223,8 +223,31 @@ export default function Home() {
               />
             )}
 
+            {/* Screen 5: Execution Tracker */}
+            {isExecuting && recommendation?.top && (
+              <ExecutionTracker
+                txHash={txHash}
+                fromChainId={recommendation.top.matchedBalance.chainId}
+                isSending={isSending}
+                isConfirming={isConfirming}
+                onComplete={() => setExecutionDone(true)}
+              />
+            )}
+
+            {/* Screen 6: Success Yield Story Card */}
+            {showStoryCard && (
+              <YieldStoryCard
+                analysis={worthItAnalysis!}
+                mandateName={MANDATES[selectedMandate!].name}
+                vaultName={recommendation!.top!.vault.name}
+                protocolName={recommendation!.top!.vault.protocol.name}
+                chainId={recommendation!.top!.vault.chainId}
+                txHash={txHash}
+              />
+            )}
+
             {/* Loading state for recommendation */}
-            {selectedMandate && !recommendation && (earnData.isLoading || balanceData.isLoading) && (
+            {selectedMandate && !recommendation && (earnData.isLoading || !isBalanceReady) && (
               <div className="card p-6">
                 <div className="flex items-center gap-3">
                   <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />

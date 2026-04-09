@@ -30,16 +30,11 @@ function ChainBalanceRow({ balance }: { balance: TokenBalance }) {
 
 interface WalletSnapshotProps {
   address: `0x${string}`
-  onBalancesReady?: (balances: TokenBalance[], totalUsd: number) => void
+  onDemoMode?: () => void
 }
 
-export function WalletSnapshot({ address, onBalancesReady }: WalletSnapshotProps) {
+export function WalletSnapshot({ address, onDemoMode }: WalletSnapshotProps) {
   const { balances, totalUsd, isLoading, error } = useStablecoinBalances(address)
-
-  // Notify parent when balances are ready
-  if (!isLoading && balances.length > 0 && onBalancesReady) {
-    onBalancesReady(balances, totalUsd)
-  }
 
   if (isLoading) {
     return (
@@ -65,8 +60,16 @@ export function WalletSnapshot({ address, onBalancesReady }: WalletSnapshotProps
       <div className="card p-6">
         <p className="text-sm text-gray-400">No stablecoin balances found on Ethereum, Base, Arbitrum, or Optimism.</p>
         <p className="text-xs text-gray-600 mt-2">
-          Connect a wallet with USDC or USDT to see a personalized yield recommendation.
+          Connect a wallet with USDC or USDT to get a personalized recommendation.
         </p>
+        {onDemoMode && (
+          <button
+            onClick={onDemoMode}
+            className="mt-3 text-sm text-blue-400 hover:text-blue-300 underline underline-offset-2"
+          >
+            Try demo mode with simulated balances
+          </button>
+        )}
       </div>
     )
   }
