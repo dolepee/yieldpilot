@@ -1,16 +1,23 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useAccount } from 'wagmi'
+import { useState, useMemo, useCallback } from 'react'
+import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi'
+import { parseUnits } from 'viem'
 import { Header } from '@/components/Header'
 import { WalletSnapshot } from '@/components/WalletSnapshot'
 import { EarnStats } from '@/components/EarnStats'
 import { MandatePicker } from '@/components/MandatePicker'
 import { RecommendationCard } from '@/components/RecommendationCard'
+import { WorthItCard } from '@/components/WorthItCard'
+import { YieldStoryCard } from '@/components/YieldStoryCard'
 import { useEarnData } from '@/hooks/useEarnData'
-import { useStablecoinBalances, type TokenBalance } from '@/hooks/useStablecoinBalances'
+import { useStablecoinBalances } from '@/hooks/useStablecoinBalances'
 import { MANDATES, type MandateKey } from '@/lib/mandates'
 import { recommend, type RecommendationResult } from '@/lib/ranking'
+import { analyzeWorthIt, type WorthItAnalysis } from '@/lib/worth-it'
+import type { ComposerQuote } from '@/lib/composer'
+
+type AppStep = 'snapshot' | 'mandate' | 'recommendation' | 'analysis' | 'executing' | 'done'
 
 export default function Home() {
   const { address, isConnected } = useAccount()
@@ -18,6 +25,13 @@ export default function Home() {
   const balanceData = useStablecoinBalances(address)
 
   const [selectedMandate, setSelectedMandate] = useState<MandateKey | null>(null)
+  const [isLoadingQuote, setIsLoadingQuote] = useState(false)
+  const [worthItAnalysis, setWorthItAnalysis] = useState<WorthItAnalysis | null>(null)
+  const [composerQuote, setComposerQuote] = useState<ComposerQuote | null>(null)
+  const [quoteError, setQuoteError] = useState<string | null>(null)
+
+  const { sendTransaction, data: txHash, isPending: isSending } = useSendTransaction()
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: txHash })
 
   // Run recommendation when mandate is selected and data is ready
   const recommendation: RecommendationResult | null = useMemo(() => {
@@ -28,10 +42,76 @@ export default function Home() {
     return recommend(earnData.vaults, mandate, balanceData.balances)
   }, [selectedMandate, earnData.vaults, earnData.isLoading, balanceData.balances, balanceData.isLoading])
 
-  const handleExecute = () => {
-    // Day 3: Composer quote + worth-it analysis
-    console.log('Execute triggered — Composer integration pending Day 3')
-  }
+  // Fetch Composer quote and run worth-it analysis
+  const handleAnalyze = useCallback(async () => {
+    if (!recommendation?.top || !selectedMandate || !address) return
+
+    setIsLoadingQuote(true)
+    setQuoteError(null)
+    setWorthItAnalysis(null)
+    setComposerQuote(null)
+
+    const scored = recommendation.top
+    const vault = scored.vault
+    const balance = scored.matchedBalance
+
+    // Build amount in smallest unit
+    const amount = parseUnits(balance.formatted, balance.decimals).toString()
+
+    const params = new URLSearchParams({
+      fromChain: String(balance.chainId),
+      toChain: String(vault.chainId),
+      fromToken: balance.address,
+      toToken: vault.address as string,
+      fromAddress: address,
+      toAddress: address,
+      fromAmount: amount,
+    })
+
+    try {
+      const res = await fetch(`/api/quote?${params}`)
+      const data = await res.json()
+
+      if (!res.ok || data.error) {
+        setQuoteError(data.error || data.message || `Quote failed: ${res.status}`)
+        setIsLoadingQuote(false)
+        return
+      }
+
+      const quote = data as ComposerQuote
+      setComposerQuote(quote)
+
+      // Run worth-it analysis
+      const mandate = MANDATES[selectedMandate]
+      const analysis = analyzeWorthIt(quote, scored, mandate)
+      setWorthItAnalysis(analysis)
+    } catch (e) {
+      setQuoteError(e instanceof Error ? e.message : 'Failed to get quote')
+    } finally {
+      setIsLoadingQuote(false)
+    }
+  }, [recommendation, selectedMandate, address])
+
+  // Execute the approved move
+  const handleExecute = useCallback(() => {
+    if (!composerQuote?.transactionRequest) return
+
+    const tx = composerQuote.transactionRequest
+    sendTransaction({
+      to: tx.to as `0x${string}`,
+      data: tx.data as `0x${string}`,
+      value: BigInt(tx.value || '0'),
+      chainId: tx.chainId,
+    })
+  }, [composerQuote, sendTransaction])
+
+  // Determine current step for UI
+  const currentStep: AppStep = isConfirmed ? 'done'
+    : (isSending || isConfirming) ? 'executing'
+    : worthItAnalysis ? 'analysis'
+    : recommendation ? 'recommendation'
+    : selectedMandate ? 'mandate'
+    : 'snapshot'
 
   return (
     <>
@@ -61,16 +141,85 @@ export default function Home() {
             {!balanceData.isLoading && (
               <MandatePicker
                 selected={selectedMandate}
-                onSelect={setSelectedMandate}
+                onSelect={(key) => {
+                  setSelectedMandate(key)
+                  setWorthItAnalysis(null)
+                  setComposerQuote(null)
+                  setQuoteError(null)
+                }}
               />
             )}
 
             {/* Screen 3: Recommendation */}
-            {recommendation && selectedMandate && (
+            {recommendation && selectedMandate && !worthItAnalysis && (
               <RecommendationCard
                 result={recommendation}
                 mandateName={MANDATES[selectedMandate].name}
-                onExecute={recommendation.type === 'recommended' ? handleExecute : undefined}
+                onExecute={recommendation.type === 'recommended' ? handleAnalyze : undefined}
+                isLoadingQuote={isLoadingQuote}
+              />
+            )}
+
+            {/* Quote error */}
+            {quoteError && (
+              <div className="card p-4 border-red-500/20">
+                <p className="text-sm text-red-400">Quote error: {quoteError}</p>
+                <button
+                  onClick={() => { setQuoteError(null); handleAnalyze() }}
+                  className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
+            {/* Screen 4: Worth-It Analysis */}
+            {worthItAnalysis && selectedMandate && currentStep !== 'executing' && currentStep !== 'done' && (
+              <WorthItCard
+                analysis={worthItAnalysis}
+                mandateName={MANDATES[selectedMandate].name}
+                onExecute={worthItAnalysis.verdict === 'approved' ? handleExecute : undefined}
+                isExecuting={isSending}
+              />
+            )}
+
+            {/* Screen 5: Execution Tracker */}
+            {(isSending || isConfirming) && (
+              <div className="card p-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+                  <div>
+                    <p className="text-sm text-white font-medium">
+                      {isSending ? 'Waiting for wallet signature...' : 'Transaction confirming...'}
+                    </p>
+                    {txHash && (
+                      <p className="text-xs text-gray-500 mt-1 font-mono">{txHash}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Screen 6: Yield Story Card */}
+            {isConfirmed && txHash && worthItAnalysis && recommendation?.top && selectedMandate && (
+              <YieldStoryCard
+                analysis={worthItAnalysis}
+                mandateName={MANDATES[selectedMandate].name}
+                vaultName={recommendation.top.vault.name}
+                protocolName={recommendation.top.vault.protocol.name}
+                chainId={recommendation.top.vault.chainId}
+                txHash={txHash}
+              />
+            )}
+
+            {/* Refusal Story Card — show when mandate analysis refuses */}
+            {worthItAnalysis && worthItAnalysis.verdict === 'refused' && selectedMandate && recommendation?.top && (
+              <YieldStoryCard
+                analysis={worthItAnalysis}
+                mandateName={MANDATES[selectedMandate].name}
+                vaultName={recommendation.top.vault.name}
+                protocolName={recommendation.top.vault.protocol.name}
+                chainId={recommendation.top.vault.chainId}
               />
             )}
 
