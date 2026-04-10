@@ -10,13 +10,19 @@ YieldPilot does not just find the highest yield. It enforces your rules.
 
 1. Connect your wallet
 2. App scans your USDC/USDT balances across Ethereum, Base, Arbitrum, and Optimism
-3. Choose a yield mandate (Conservative, Balanced, or Aggressive)
-4. App filters 659+ vaults against your mandate constraints
-5. App fetches a Composer quote and calculates whether the move is economically worth it
-6. If the move passes your mandate and breaks even fast enough: execute
-7. If not: explicitly refuse and explain why your funds stay put
+3. Describe your strategy in plain English or choose a preset mandate
+4. AI translates that strategy into a structured mandate with TVL, break-even, chain, and reward constraints
+5. App filters 659+ vaults against that mandate
+6. App fetches a Composer quote and calculates whether the move is economically worth it
+7. If the move passes your mandate and breaks even fast enough: execute
+8. If not: explicitly refuse and explain why your funds stay put
 
-The core differentiator is the refusal logic. YieldPilot says "no" when a move is not worth it.
+The core differentiator is the combination of:
+
+- natural-language mandate parsing
+- deterministic vault ranking
+- real Composer cost analysis
+- refusal logic when the move is not worth it
 
 ## How It Uses the Earn API
 
@@ -36,9 +42,23 @@ The core differentiator is the refusal logic. YieldPilot says "no" when a move i
 
 - viem `readContract` for USDC/USDT balances across 4 chains (Ethereum, Base, Arbitrum, Optimism)
 
+### AI Intent Layer
+
+- `POST /api/intent` converts a natural-language strategy into a custom mandate
+- Uses OpenAI when `OPENAI_API_KEY` is present
+- Falls back to a deterministic parser when no model is configured
+- AI output directly changes:
+  - cross-chain allowance
+  - TVL floor
+  - break-even ceiling
+  - reward-heavy exclusions
+  - APY improvement floor
+
 ## Mandate System
 
-Three presets with typed constraints:
+Three presets remain, but they are no longer the only path.
+
+Users can still choose:
 
 | Mandate | TVL Floor | Max Break-Even | Cross-Chain | Reward-Heavy |
 |---|---|---|---|---|
@@ -46,7 +66,12 @@ Three presets with typed constraints:
 | Balanced | $10M | 14 days | Allowed | Allowed |
 | Aggressive | $1M | 30 days | Allowed | Allowed |
 
-Each mandate maps to structured fields: `minTvlUsd`, `maxBreakEvenDays`, `protocolTierFloor`, `avoidRewardHeavy`, `crossChainAllowed`, and more.
+Or they can type a strategy like:
+
+- "Keep me on the safest same-chain vault and do not bridge if payback is longer than 7 days."
+- "Find me the best stablecoin yield above 5% even if it needs a bridge, but keep TVL above $50M."
+
+That prompt becomes a custom typed mandate.
 
 ## Break-Even Engine
 
@@ -63,7 +88,7 @@ If break-even exceeds the mandate limit, the move is refused with a clear explan
 
 ## Ranking Engine
 
-Deterministic scoring, not LLM-driven. Factors:
+Vault selection stays deterministic. Factors:
 
 - APY level (0-30 points)
 - APY stability: 1d vs 30d drift (0-20 points)
@@ -71,7 +96,14 @@ Deterministic scoring, not LLM-driven. Factors:
 - Protocol maturity tier (0-15 points)
 - Same-chain bonus (0-15 points)
 
-AI is used only for explanation text and the Yield Story card copy, never for vault selection.
+AI is used for intent translation, not for arbitrary vault picking.
+That means:
+
+- AI converts vague user strategy into a strict mandate
+- deterministic ranking selects the vault
+- Composer verifies whether execution is economically worth it
+
+This keeps AI load-bearing without making selection non-reproducible.
 
 ## Tech Stack
 
@@ -80,6 +112,7 @@ AI is used only for explanation text and the Yield Story card copy, never for va
 - viem for on-chain reads and transaction building
 - Tailwind CSS 4
 - LI.FI Earn Data API + Composer
+- OpenAI API (optional, for natural-language mandates)
 - Vercel for deployment
 
 ## Quick Start
@@ -98,6 +131,7 @@ npm run dev
 |---|---|
 | `LIFI_API_KEY` | Composer API key from portal.li.fi |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | WalletConnect project ID |
+| `OPENAI_API_KEY` | Optional. Enables model-backed natural-language mandate parsing |
 
 ## Project Structure
 

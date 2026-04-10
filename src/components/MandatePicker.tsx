@@ -52,9 +52,9 @@ interface MandatePickerProps {
 export function MandatePicker({ selected, onSelect }: MandatePickerProps) {
   return (
     <div className="card p-6">
-      <h2 className="text-lg font-semibold text-white mb-1">Choose your yield mandate</h2>
+      <h2 className="text-lg font-semibold text-white mb-1">Or choose a preset mandate</h2>
       <p className="text-sm text-gray-500 mb-5">
-        YieldPilot will only recommend moves that satisfy your rules.
+        If you do not want a custom AI-generated strategy, pick one of the fixed policy presets.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {(Object.entries(MANDATES) as [MandateKey, typeof MANDATES[MandateKey]][]).map(([key, mandate]) => {
