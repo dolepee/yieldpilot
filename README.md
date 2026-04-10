@@ -16,10 +16,12 @@ YieldPilot does not just find the highest yield. It enforces your rules.
 6. App fetches a Composer quote and calculates whether the move is economically worth it
 7. If the move passes your mandate and breaks even fast enough: execute
 8. If not: explicitly refuse and explain why your funds stay put
+9. App shows a visible decision trace from prompt to final verdict
 
 The core differentiator is the combination of:
 
 - natural-language mandate parsing
+- visible AI decision trace
 - deterministic vault ranking
 - real Composer cost analysis
 - refusal logic when the move is not worth it

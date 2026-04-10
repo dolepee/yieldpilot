@@ -7,6 +7,7 @@ import { Header } from '@/components/Header'
 import { WalletSnapshot } from '@/components/WalletSnapshot'
 import { EarnStats } from '@/components/EarnStats'
 import { IntentPlanner } from '@/components/IntentPlanner'
+import { DecisionTrace } from '@/components/DecisionTrace'
 import { MandatePicker } from '@/components/MandatePicker'
 import { RecommendationCard } from '@/components/RecommendationCard'
 import { WorthItCard } from '@/components/WorthItCard'
@@ -370,6 +371,19 @@ export default function Home() {
               <MandatePicker
                 selected={selectedMandate}
                 onSelect={handleMandateSelect}
+              />
+            )}
+
+            {/* AI decision audit trail */}
+            {activeMandate && (
+              <DecisionTrace
+                prompt={intentPlan?.prompt}
+                source={intentPlan?.source}
+                mandate={activeMandate}
+                scannedVaults={earnData.vaults.length}
+                recommendation={recommendation}
+                worthItAnalysis={worthItAnalysis}
+                preferredChains={intentPlan?.preferredChains}
               />
             )}
 
