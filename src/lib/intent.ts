@@ -1,6 +1,8 @@
 import type { MandateConfig, MandateKey } from './mandates'
 import { MANDATES } from './mandates'
 
+const ALLOWED_CHAINS = ['ethereum', 'base', 'arbitrum', 'optimism'] as const
+
 export interface IntentBalanceSummary {
   chainId: number
   chainName: string
@@ -33,6 +35,99 @@ export interface IntentPlan {
   mandate: MandateConfig
   preferredChains: string[]
   reasoning: string[]
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max)
+}
+
+function isPresetKey(value: unknown): value is MandateKey {
+  return value === 'conservative' || value === 'balanced' || value === 'aggressive'
+}
+
+function normalizeChains(input: unknown): string[] {
+  if (!Array.isArray(input)) return []
+
+  return input
+    .map((item) => String(item).trim().toLowerCase())
+    .filter((chain): chain is (typeof ALLOWED_CHAINS)[number] =>
+      (ALLOWED_CHAINS as readonly string[]).includes(chain)
+    )
+    .filter((chain, index, arr) => arr.indexOf(chain) === index)
+}
+
+function fallbackReasoning(preset: MandateKey, crossChainAllowed: boolean, minTvlUsd: number, maxBreakEvenDays: number) {
+  return [
+    `Parsed your request as a ${preset} strategy.`,
+    crossChainAllowed ? 'Cross-chain routes are allowed.' : 'Same-chain execution is preferred or required.',
+    `Minimum TVL threshold set to $${Math.round(minTvlUsd).toLocaleString()}.`,
+    `Break-even ceiling set to ${maxBreakEvenDays} days.`,
+  ]
+}
+
+export function normalizeParsedIntent(
+  payload: ParsedIntentPayload,
+  balances: IntentBalanceSummary[]
+): ParsedIntentPayload {
+  const suggestedPreset = isPresetKey(payload.suggestedPreset) ? payload.suggestedPreset : 'balanced'
+  const baseMandate = MANDATES[suggestedPreset]
+  const heldChains = [...new Set(balances.map((balance) => balance.chainName.toLowerCase()))]
+
+  const sameChainPreferred = typeof payload.sameChainPreferred === 'boolean'
+    ? payload.sameChainPreferred
+    : baseMandate.sameChainPreferred
+  const crossChainAllowed = typeof payload.crossChainAllowed === 'boolean'
+    ? payload.crossChainAllowed
+    : baseMandate.crossChainAllowed
+  const avoidRewardHeavy = typeof payload.avoidRewardHeavy === 'boolean'
+    ? payload.avoidRewardHeavy
+    : baseMandate.avoidRewardHeavy
+
+  const minTvlUsd = Number.isFinite(payload.minTvlUsd) && payload.minTvlUsd > 0
+    ? clamp(Math.round(payload.minTvlUsd), 1_000_000, 10_000_000_000)
+    : baseMandate.minTvlUsd
+  const maxBreakEvenDays = Number.isFinite(payload.maxBreakEvenDays)
+    ? clamp(Math.round(payload.maxBreakEvenDays), 3, 45)
+    : baseMandate.maxBreakEvenDays
+  const minApyImprovementPct = Number.isFinite(payload.minApyImprovementPct)
+    ? clamp(payload.minApyImprovementPct, 0.25, 10)
+    : baseMandate.minApyImprovementBps / 100
+  const protocolTierFloor = Number.isFinite(payload.protocolTierFloor)
+    ? clamp(Math.round(payload.protocolTierFloor), 3, 10)
+    : baseMandate.protocolTierFloor
+
+  const preferredChains = normalizeChains(payload.preferredChains)
+  const normalizedPreferredChains = preferredChains.length > 0
+    ? preferredChains
+    : sameChainPreferred
+      ? heldChains.filter((chain): chain is (typeof ALLOWED_CHAINS)[number] =>
+          (ALLOWED_CHAINS as readonly string[]).includes(chain)
+        )
+      : []
+
+  const reasoning = Array.isArray(payload.reasoning)
+    ? payload.reasoning
+      .map((item) => String(item).trim())
+      .filter(Boolean)
+      .slice(0, 4)
+    : []
+
+  return {
+    strategyName: String(payload.strategyName || '').trim() || baseMandate.name,
+    summary: String(payload.summary || '').trim() || baseMandate.description,
+    suggestedPreset,
+    crossChainAllowed: sameChainPreferred ? false : crossChainAllowed,
+    sameChainPreferred,
+    avoidRewardHeavy,
+    minTvlUsd,
+    maxBreakEvenDays,
+    minApyImprovementPct,
+    protocolTierFloor,
+    preferredChains: normalizedPreferredChains,
+    reasoning: reasoning.length > 0
+      ? reasoning
+      : fallbackReasoning(suggestedPreset, sameChainPreferred ? false : crossChainAllowed, minTvlUsd, maxBreakEvenDays),
+  }
 }
 
 export function makeIntentPlan(
@@ -92,8 +187,7 @@ function parseMinApy(input: string): number | null {
 
 function detectPreferredChains(input: string): string[] {
   const lower = input.toLowerCase()
-  const known = ['ethereum', 'base', 'arbitrum', 'optimism']
-  return known.filter(chain => lower.includes(chain))
+  return ALLOWED_CHAINS.filter(chain => lower.includes(chain))
 }
 
 export function fallbackParseIntent(prompt: string, balances: IntentBalanceSummary[]): IntentPlan {
@@ -108,13 +202,17 @@ export function fallbackParseIntent(prompt: string, balances: IntentBalanceSumma
   }
 
   const baseMandate = MANDATES[preset]
-  const crossChainAllowed = /(cross[- ]?chain|any chain|bridge|wherever|best chain)/.test(lower)
-    ? true
-    : /(same chain|no bridge|without bridge|stay on|keep it on)/.test(lower)
-      ? false
+  const forbidsBridge = /(same[- ]chain|no bridge|without bridge|do not bridge|don't bridge|stay on|keep it on)/.test(lower)
+  const requestsCrossChain = /(cross[- ]?chain|any chain|wherever|best chain)/.test(lower)
+    || (/\bbridge\b/.test(lower) && !forbidsBridge)
+
+  const crossChainAllowed = forbidsBridge
+    ? false
+    : requestsCrossChain
+      ? true
       : baseMandate.crossChainAllowed
 
-  const sameChainPreferred = /(same chain|no bridge|without bridge|stay on|keep it on)/.test(lower)
+  const sameChainPreferred = forbidsBridge
     ? true
     : baseMandate.sameChainPreferred
 
@@ -151,28 +249,24 @@ export function fallbackParseIntent(prompt: string, balances: IntentBalanceSumma
         ? `Search widely across ${chainLine} for stronger APY, allow more route flexibility, and accept longer break-even if the upside is real.`
         : `Prefer practical yield on ${chainLine}, allow cross-chain when it clearly pays for itself, and keep liquidity quality high.`
 
-  const reasoning = [
-    `Parsed your request as a ${preset} strategy.`,
-    crossChainAllowed ? 'Cross-chain routes are allowed.' : 'Same-chain execution is preferred or required.',
-    `Minimum TVL threshold set to $${Math.round(minTvlUsd).toLocaleString()}.`,
-    `Break-even ceiling set to ${maxBreakEvenDays} days.`,
-  ]
-
   return makeIntentPlan(
-    {
-      strategyName,
-      summary,
-      suggestedPreset: preset,
-      crossChainAllowed,
-      sameChainPreferred,
-      avoidRewardHeavy,
-      minTvlUsd,
-      maxBreakEvenDays,
-      minApyImprovementPct,
-      protocolTierFloor,
-      preferredChains,
-      reasoning,
-    },
+    normalizeParsedIntent(
+      {
+        strategyName,
+        summary,
+        suggestedPreset: preset,
+        crossChainAllowed,
+        sameChainPreferred,
+        avoidRewardHeavy,
+        minTvlUsd,
+        maxBreakEvenDays,
+        minApyImprovementPct,
+        protocolTierFloor,
+        preferredChains,
+        reasoning: fallbackReasoning(preset, crossChainAllowed, minTvlUsd, maxBreakEvenDays),
+      },
+      balances
+    ),
     prompt,
     'fallback'
   )

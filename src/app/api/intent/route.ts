@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import {
   fallbackParseIntent,
   makeIntentPlan,
+  normalizeParsedIntent,
   type IntentBalanceSummary,
   type ParsedIntentPayload,
 } from '@/lib/intent'
 
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini'
-const BANKR_MODEL = process.env.BANKR_LLM_MODEL || 'deepseek-v3.2'
+const OPENAI_MODEL = (process.env.OPENAI_MODEL || 'gpt-4.1-mini').trim()
+const BANKR_MODEL = (process.env.BANKR_LLM_MODEL || 'deepseek-v3.2').trim()
 
 function safeJsonParse<T>(value: string): T | null {
   try {
@@ -94,13 +95,23 @@ async function parseWithOpenAI(
     }),
   })
 
-  if (!response.ok) return null
+  if (!response.ok) {
+    console.error('OpenAI intent parse failed', response.status, await response.text())
+    return null
+  }
 
   const data = await response.json()
   const content = data.choices?.[0]?.message?.content
-  if (typeof content !== 'string') return null
+  if (typeof content !== 'string') {
+    console.error('OpenAI intent parse returned non-string content')
+    return null
+  }
 
-  return safeJsonParse<ParsedIntentPayload>(extractJsonText(content))
+  const parsed = safeJsonParse<ParsedIntentPayload>(extractJsonText(content))
+  if (!parsed) {
+    console.error('OpenAI intent parse returned unparseable JSON', content.slice(0, 400))
+  }
+  return parsed
 }
 
 async function parseWithBankr(
@@ -164,13 +175,23 @@ async function parseWithBankr(
     }),
   })
 
-  if (!response.ok) return null
+  if (!response.ok) {
+    console.error('Bankr intent parse failed', response.status, await response.text())
+    return null
+  }
 
   const data = await response.json()
   const content = data.choices?.[0]?.message?.content
-  if (typeof content !== 'string') return null
+  if (typeof content !== 'string') {
+    console.error('Bankr intent parse returned non-string content')
+    return null
+  }
 
-  return safeJsonParse<ParsedIntentPayload>(extractJsonText(content))
+  const parsed = safeJsonParse<ParsedIntentPayload>(extractJsonText(content))
+  if (!parsed) {
+    console.error('Bankr intent parse returned unparseable JSON', content.slice(0, 400))
+  }
+  return parsed
 }
 
 export async function POST(request: NextRequest) {
@@ -187,7 +208,7 @@ export async function POST(request: NextRequest) {
       ?? await parseWithOpenAI(prompt, balances)
 
     if (aiParsed) {
-      const plan = makeIntentPlan(aiParsed, prompt, 'ai')
+      const plan = makeIntentPlan(normalizeParsedIntent(aiParsed, balances), prompt, 'ai')
       return NextResponse.json(plan)
     }
 
