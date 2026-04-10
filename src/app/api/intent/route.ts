@@ -17,6 +17,23 @@ function safeJsonParse<T>(value: string): T | null {
   }
 }
 
+function extractJsonText(value: string): string {
+  const trimmed = value.trim()
+
+  const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i)
+  if (fenced?.[1]) {
+    return fenced[1].trim()
+  }
+
+  const firstBrace = trimmed.indexOf('{')
+  const lastBrace = trimmed.lastIndexOf('}')
+  if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+    return trimmed.slice(firstBrace, lastBrace + 1)
+  }
+
+  return trimmed
+}
+
 async function parseWithOpenAI(
   prompt: string,
   balances: IntentBalanceSummary[]
@@ -83,7 +100,7 @@ async function parseWithOpenAI(
   const content = data.choices?.[0]?.message?.content
   if (typeof content !== 'string') return null
 
-  return safeJsonParse<ParsedIntentPayload>(content)
+  return safeJsonParse<ParsedIntentPayload>(extractJsonText(content))
 }
 
 async function parseWithBankr(
@@ -153,7 +170,7 @@ async function parseWithBankr(
   const content = data.choices?.[0]?.message?.content
   if (typeof content !== 'string') return null
 
-  return safeJsonParse<ParsedIntentPayload>(content)
+  return safeJsonParse<ParsedIntentPayload>(extractJsonText(content))
 }
 
 export async function POST(request: NextRequest) {
