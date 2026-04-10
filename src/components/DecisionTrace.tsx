@@ -6,7 +6,7 @@ import type { WorthItAnalysis } from '@/lib/worth-it'
 
 interface DecisionTraceProps {
   prompt?: string
-  source?: 'ai' | 'fallback'
+  source?: 'ai' | 'fallback' | 'preset'
   mandate: MandateConfig
   scannedVaults: number
   recommendation: RecommendationResult | null
@@ -45,7 +45,13 @@ export function DecisionTrace({
   const chips = constraintChips(mandate, preferredChains)
   const filteredVaults = recommendation?.candidatesFiltered ?? 0
   const top = recommendation?.top
-  const strategySource = source === 'ai' ? 'AI mandate trace' : source === 'fallback' ? 'Deterministic mandate trace' : 'Mandate trace'
+  const strategySource = source === 'ai'
+    ? 'AI mandate trace'
+    : source === 'fallback'
+      ? 'Deterministic mandate trace'
+      : source === 'preset'
+        ? 'Preset mandate trace'
+        : 'Mandate trace'
   const finalVerdict = worthItAnalysis
     ? worthItAnalysis.verdict === 'approved'
       ? 'move approved'

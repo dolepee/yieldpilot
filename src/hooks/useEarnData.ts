@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { fetchAllVaults, fetchChains, fetchProtocols } from '@/lib/earn-api'
 import type { Vault, EarnChain, EarnProtocol } from '@/lib/earn-api'
 
 export interface EarnData {
@@ -24,15 +23,20 @@ export function useEarnData(): EarnData {
 
     async function load() {
       try {
-        const [v, c, p] = await Promise.all([
-          fetchAllVaults(),
-          fetchChains(),
-          fetchProtocols(),
-        ])
+        setIsLoading(true)
+        setError(null)
+
+        const res = await fetch('/api/earn')
+        const data = await res.json()
+
+        if (!res.ok || data.error) {
+          throw new Error(data.error || `Earn bootstrap error: ${res.status}`)
+        }
+
         if (cancelled) return
-        setVaults(v)
-        setChains(c)
-        setProtocols(p)
+        setVaults(data.vaults)
+        setChains(data.chains)
+        setProtocols(data.protocols)
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load Earn data')
       } finally {

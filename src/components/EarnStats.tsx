@@ -1,9 +1,16 @@
 'use client'
 
-import { useEarnData } from '@/hooks/useEarnData'
+import type { EarnChain, EarnProtocol, Vault } from '@/lib/earn-api'
 
-export function EarnStats() {
-  const { vaults, chains, protocols, isLoading, error } = useEarnData()
+interface EarnStatsProps {
+  vaults: Vault[]
+  chains: EarnChain[]
+  protocols: EarnProtocol[]
+  isLoading: boolean
+  error: string | null
+}
+
+export function EarnStats({ vaults, chains, protocols, isLoading, error }: EarnStatsProps) {
 
   if (isLoading) {
     return (
@@ -18,7 +25,14 @@ export function EarnStats() {
     )
   }
 
-  if (error) return null
+  if (error) {
+    return (
+      <div className="card p-4 border-red-500/20">
+        <p className="text-sm text-red-400">Failed to load LI.FI Earn market data.</p>
+        <p className="mt-1 text-xs text-gray-500">{error}</p>
+      </div>
+    )
+  }
 
   const stablecoinVaults = vaults.filter(v => v.tags.includes('stablecoin') && v.isTransactional)
   const avgApy = stablecoinVaults.length > 0

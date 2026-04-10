@@ -161,6 +161,8 @@ export default function Home() {
     if (!strategyPrompt.trim()) return
 
     setIsParsingIntent(true)
+    setSelectedMandate(null)
+    setIntentPlan(null)
     setIntentError(null)
     setWorthItAnalysis(null)
     setComposerQuote(null)
@@ -322,7 +324,13 @@ export default function Home() {
         </div>
 
         {/* Earn Data Stats */}
-        <EarnStats />
+        <EarnStats
+          vaults={earnData.vaults}
+          chains={earnData.chains}
+          protocols={earnData.protocols}
+          isLoading={earnData.isLoading}
+          error={earnData.error}
+        />
 
         {/* Main Flow */}
         {isConnected && address ? (
@@ -378,7 +386,7 @@ export default function Home() {
             {activeMandate && (
               <DecisionTrace
                 prompt={intentPlan?.prompt}
-                source={intentPlan?.source}
+                source={intentPlan?.source ?? (selectedMandate ? 'preset' : undefined)}
                 mandate={activeMandate}
                 scannedVaults={earnData.vaults.length}
                 recommendation={recommendation}

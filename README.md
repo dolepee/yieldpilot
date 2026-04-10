@@ -33,6 +33,7 @@ The core differentiator is the combination of:
 - `GET /v1/earn/vaults` with full pagination across all 659+ vaults
 - `GET /v1/earn/chains` for supported chain metadata
 - `GET /v1/earn/protocols` for protocol metadata and maturity scoring
+- Proxied through `GET /api/earn` in the app so the browser does not depend on direct third-party API access
 
 ### Composer (li.quest)
 
