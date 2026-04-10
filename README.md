@@ -48,7 +48,8 @@ The core differentiator is the combination of:
 ### AI Intent Layer
 
 - `POST /api/intent` converts a natural-language strategy into a custom mandate
-- Uses OpenAI when `OPENAI_API_KEY` is present
+- Prefers Bankr LLM Gateway when `BANKR_LLM_KEY` is present
+- Falls back to OpenAI when `OPENAI_API_KEY` is present
 - Falls back to a deterministic parser when no model is configured
 - AI output directly changes:
   - cross-chain allowance
@@ -115,7 +116,7 @@ This keeps AI load-bearing without making selection non-reproducible.
 - viem for on-chain reads and transaction building
 - Tailwind CSS 4
 - LI.FI Earn Data API + Composer
-- OpenAI API (optional, for natural-language mandates)
+- Bankr LLM Gateway / OpenAI API (optional, for natural-language mandates)
 - Vercel for deployment
 
 ## Quick Start
@@ -134,6 +135,8 @@ npm run dev
 |---|---|
 | `LIFI_API_KEY` | Composer API key from portal.li.fi |
 | `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` | WalletConnect project ID |
+| `BANKR_LLM_KEY` | Optional. Enables Bankr-backed natural-language mandate parsing |
+| `BANKR_LLM_MODEL` | Optional. Bankr model name, defaults to `deepseek-v3.2` |
 | `OPENAI_API_KEY` | Optional. Enables model-backed natural-language mandate parsing |
 
 ## Project Structure
