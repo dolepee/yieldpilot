@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
-import { useAccount, useSendTransaction, useWaitForTransactionReceipt } from 'wagmi'
-import { parseUnits } from 'viem'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useAccount, useSendTransaction, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
+import { parseUnits, createPublicClient, http } from 'viem'
 import { Header } from '@/components/Header'
 import { WalletSnapshot } from '@/components/WalletSnapshot'
 import { EarnStats } from '@/components/EarnStats'
@@ -18,6 +18,8 @@ import { recommend, type RecommendationResult } from '@/lib/ranking'
 import { analyzeWorthIt, type WorthItAnalysis } from '@/lib/worth-it'
 import { DEMO_BALANCES } from '@/lib/demo'
 import type { ComposerQuote } from '@/lib/composer'
+import { useLifiStatus } from '@/hooks/useLifiStatus'
+import { ERC20_ALLOWANCE_ABI, TARGET_CHAINS } from '@/lib/constants'
 
 export default function Home() {
   const { address, isConnected } = useAccount()
@@ -30,14 +32,26 @@ export default function Home() {
   const [composerQuote, setComposerQuote] = useState<ComposerQuote | null>(null)
   const [quoteError, setQuoteError] = useState<string | null>(null)
   const [isDemoMode, setIsDemoMode] = useState(false)
-  const [executionDone, setExecutionDone] = useState(false)
+  const [executionError, setExecutionError] = useState<string | null>(null)
+  const [isCheckingAllowance, setIsCheckingAllowance] = useState(false)
+  const [approvalRequired, setApprovalRequired] = useState(false)
+  const [pendingRouteAfterApproval, setPendingRouteAfterApproval] = useState(false)
+  const [activeRouteHash, setActiveRouteHash] = useState<`0x${string}` | undefined>()
+  const [activeRouteFromChainId, setActiveRouteFromChainId] = useState<number | undefined>()
+  const [activeApprovalHash, setActiveApprovalHash] = useState<`0x${string}` | undefined>()
 
-  const { sendTransaction, data: txHash, isPending: isSending } = useSendTransaction()
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash: txHash })
+  const { sendTransactionAsync, isPending: isSending } = useSendTransaction()
+  const { writeContractAsync, isPending: isApproving } = useWriteContract()
+  const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: activeRouteHash })
+  const { isLoading: isApprovalConfirming, isSuccess: isApprovalConfirmed } = useWaitForTransactionReceipt({ hash: activeApprovalHash })
 
   // Use demo balances if in demo mode, otherwise real balances
   const activeBalances: TokenBalance[] = isDemoMode ? DEMO_BALANCES : balanceData.balances
   const isBalanceReady = isDemoMode || !balanceData.isLoading
+  const activeTotalUsd = useMemo(
+    () => activeBalances.reduce((sum, balance) => sum + balance.usdValue, 0),
+    [activeBalances]
+  )
 
   // Run recommendation when mandate is selected and data is ready
   const recommendation: RecommendationResult | null = useMemo(() => {
@@ -48,6 +62,34 @@ export default function Home() {
     return recommend(earnData.vaults, mandate, activeBalances)
   }, [selectedMandate, earnData.vaults, earnData.isLoading, activeBalances, isBalanceReady])
 
+  const { status: lifiStatus } = useLifiStatus(activeRouteHash, activeRouteFromChainId)
+
+  const executeRouteTransaction = useCallback(async () => {
+    if (!composerQuote?.transactionRequest) return
+
+    const tx = composerQuote.transactionRequest
+
+    try {
+      setExecutionError(null)
+      const hash = await sendTransactionAsync({
+        to: tx.to as `0x${string}`,
+        data: tx.data as `0x${string}`,
+        value: BigInt(tx.value || '0'),
+        chainId: tx.chainId,
+      })
+      setActiveRouteHash(hash)
+      setActiveRouteFromChainId(tx.chainId)
+    } catch (e) {
+      setExecutionError(e instanceof Error ? e.message : 'Failed to submit route transaction')
+    }
+  }, [composerQuote, sendTransactionAsync])
+
+  useEffect(() => {
+    if (!pendingRouteAfterApproval || !isApprovalConfirmed) return
+    setPendingRouteAfterApproval(false)
+    void executeRouteTransaction()
+  }, [pendingRouteAfterApproval, isApprovalConfirmed, executeRouteTransaction])
+
   // Fetch Composer quote and run worth-it analysis
   const handleAnalyze = useCallback(async () => {
     if (!recommendation?.top || !selectedMandate || !address) return
@@ -56,6 +98,12 @@ export default function Home() {
     setQuoteError(null)
     setWorthItAnalysis(null)
     setComposerQuote(null)
+    setExecutionError(null)
+    setApprovalRequired(false)
+    setPendingRouteAfterApproval(false)
+    setActiveRouteHash(undefined)
+    setActiveRouteFromChainId(undefined)
+    setActiveApprovalHash(undefined)
 
     const scored = recommendation.top
     const vault = scored.vault
@@ -97,28 +145,90 @@ export default function Home() {
   }, [recommendation, selectedMandate, address])
 
   // Execute the approved move
-  const handleExecute = useCallback(() => {
-    if (!composerQuote?.transactionRequest) return
+  const handleExecute = useCallback(async () => {
+    if (!composerQuote?.transactionRequest || !address) return
 
-    const tx = composerQuote.transactionRequest
-    sendTransaction({
-      to: tx.to as `0x${string}`,
-      data: tx.data as `0x${string}`,
-      value: BigInt(tx.value || '0'),
-      chainId: tx.chainId,
-    })
-  }, [composerQuote, sendTransaction])
+    const approvalAddress = composerQuote.estimate.approvalAddress as `0x${string}` | undefined
+    const fromToken = composerQuote.action.fromToken.address as `0x${string}`
+    const fromAmount = BigInt(composerQuote.action.fromAmount)
+    const fromChainId = composerQuote.action.fromChainId
+    const chain = TARGET_CHAINS.find((candidate) => candidate.id === fromChainId)
+
+    setExecutionError(null)
+    setActiveApprovalHash(undefined)
+    setActiveRouteHash(undefined)
+    setActiveRouteFromChainId(undefined)
+    setPendingRouteAfterApproval(false)
+
+    if (!approvalAddress || !chain) {
+      setApprovalRequired(false)
+      await executeRouteTransaction()
+      return
+    }
+
+    setIsCheckingAllowance(true)
+
+    try {
+      const publicClient = createPublicClient({ chain, transport: http() })
+      const allowance = await publicClient.readContract({
+        address: fromToken,
+        abi: ERC20_ALLOWANCE_ABI,
+        functionName: 'allowance',
+        args: [address, approvalAddress],
+      })
+
+      if (allowance >= fromAmount) {
+        setApprovalRequired(false)
+        await executeRouteTransaction()
+        return
+      }
+
+      setApprovalRequired(true)
+      setPendingRouteAfterApproval(true)
+
+      const approvalHash = await writeContractAsync({
+        address: fromToken,
+        abi: ERC20_ALLOWANCE_ABI,
+        functionName: 'approve',
+        args: [approvalAddress, fromAmount],
+        chainId: fromChainId,
+      })
+      setActiveApprovalHash(approvalHash)
+    } catch (e) {
+      setExecutionError(e instanceof Error ? e.message : 'Failed to prepare approval')
+      setPendingRouteAfterApproval(false)
+    } finally {
+      setIsCheckingAllowance(false)
+    }
+  }, [address, composerQuote, executeRouteTransaction, writeContractAsync])
 
   const handleMandateSelect = (key: MandateKey) => {
     setSelectedMandate(key)
     setWorthItAnalysis(null)
     setComposerQuote(null)
     setQuoteError(null)
-    setExecutionDone(false)
+    setExecutionError(null)
+    setApprovalRequired(false)
+    setPendingRouteAfterApproval(false)
+    setActiveRouteHash(undefined)
+    setActiveRouteFromChainId(undefined)
+    setActiveApprovalHash(undefined)
   }
 
-  const isExecuting = isSending || isConfirming
-  const showStoryCard = (isConfirmed || executionDone) && txHash && worthItAnalysis && recommendation?.top && selectedMandate
+  const showExecutionTracker = !!activeRouteHash && worthItAnalysis?.verdict === 'approved' && !(
+    lifiStatus === 'DONE' && activeRouteHash && worthItAnalysis && recommendation?.top && selectedMandate
+  )
+  const isBusy = isCheckingAllowance || isApproving || isApprovalConfirming || isSending || isConfirming
+  const executeButtonLabel = isCheckingAllowance
+    ? 'Checking allowance...'
+    : isApproving
+      ? 'Confirm approval...'
+      : isApprovalConfirming
+        ? 'Waiting for approval...'
+        : isSending
+          ? 'Confirm route...'
+          : 'Executing...'
+  const showStoryCard = lifiStatus === 'DONE' && activeRouteHash && worthItAnalysis && recommendation?.top && selectedMandate
 
   return (
     <>
@@ -158,7 +268,11 @@ export default function Home() {
 
             {/* Screen 1: Wallet Snapshot */}
             <WalletSnapshot
-              address={address}
+              balances={activeBalances}
+              totalUsd={activeTotalUsd}
+              isLoading={!isDemoMode && balanceData.isLoading}
+              error={isDemoMode ? null : balanceData.error}
+              isDemoMode={isDemoMode}
               onDemoMode={() => setIsDemoMode(true)}
             />
 
@@ -171,7 +285,7 @@ export default function Home() {
             )}
 
             {/* Screen 3: Recommendation */}
-            {recommendation && selectedMandate && !worthItAnalysis && !isExecuting && !showStoryCard && (
+            {recommendation && selectedMandate && !worthItAnalysis && !showExecutionTracker && !showStoryCard && (
               <RecommendationCard
                 result={recommendation}
                 mandateName={MANDATES[selectedMandate].name}
@@ -190,25 +304,30 @@ export default function Home() {
             )}
 
             {/* Quote error */}
-            {quoteError && (
+            {(quoteError || executionError) && (
               <div className="card p-4 border-red-500/20">
-                <p className="text-sm text-red-400">Quote error: {quoteError}</p>
-                <button
-                  onClick={() => { setQuoteError(null); handleAnalyze() }}
-                  className="mt-2 text-xs text-blue-400 hover:text-blue-300"
-                >
-                  Retry
-                </button>
+                <p className="text-sm text-red-400">
+                  {quoteError ? `Quote error: ${quoteError}` : `Execution error: ${executionError}`}
+                </p>
+                {quoteError && (
+                  <button
+                    onClick={() => { setQuoteError(null); handleAnalyze() }}
+                    className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+                  >
+                    Retry
+                  </button>
+                )}
               </div>
             )}
 
             {/* Screen 4: Worth-It Analysis */}
-            {worthItAnalysis && selectedMandate && !isExecuting && !showStoryCard && (
+            {worthItAnalysis && selectedMandate && !showExecutionTracker && !showStoryCard && (
               <WorthItCard
                 analysis={worthItAnalysis}
                 mandateName={MANDATES[selectedMandate].name}
                 onExecute={worthItAnalysis.verdict === 'approved' ? handleExecute : undefined}
-                isExecuting={isSending}
+                isExecuting={isBusy}
+                actionLabel={executeButtonLabel}
               />
             )}
 
@@ -224,13 +343,17 @@ export default function Home() {
             )}
 
             {/* Screen 5: Execution Tracker */}
-            {isExecuting && recommendation?.top && (
+            {showExecutionTracker && recommendation?.top && (
               <ExecutionTracker
-                txHash={txHash}
-                fromChainId={recommendation.top.matchedBalance.chainId}
-                isSending={isSending}
-                isConfirming={isConfirming}
-                onComplete={() => setExecutionDone(true)}
+                txHash={activeRouteHash}
+                approvalHash={activeApprovalHash}
+                approvalRequired={approvalRequired}
+                isCheckingAllowance={isCheckingAllowance}
+                isApproving={isApproving}
+                isApprovalConfirming={isApprovalConfirming}
+                isSendingRoute={isSending}
+                isRouteConfirming={isConfirming}
+                lifiStatus={lifiStatus}
               />
             )}
 
@@ -242,7 +365,7 @@ export default function Home() {
                 vaultName={recommendation!.top!.vault.name}
                 protocolName={recommendation!.top!.vault.protocol.name}
                 chainId={recommendation!.top!.vault.chainId}
-                txHash={txHash}
+                txHash={activeRouteHash}
               />
             )}
 

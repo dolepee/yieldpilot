@@ -122,7 +122,7 @@ export function YieldStoryCard({
 
       {/* Footer */}
       <div className="px-6 py-3 bg-white/[0.02] flex items-center justify-between">
-        <span className="text-xs text-gray-600">yieldpilot.app</span>
+        <span className="text-xs text-gray-600">yieldpilot-iota.vercel.app</span>
         {txHash && (
           <span className="text-xs text-gray-600 font-mono">
             {txHash.slice(0, 10)}...{txHash.slice(-6)}

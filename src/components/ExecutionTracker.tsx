@@ -1,13 +1,17 @@
 'use client'
 
-import { useLifiStatus, type LifiStatusState } from '@/hooks/useLifiStatus'
+import type { LifiStatusState } from '@/hooks/useLifiStatus'
 
 interface ExecutionTrackerProps {
   txHash: string | undefined
-  fromChainId: number | undefined
-  isSending: boolean
-  isConfirming: boolean
-  onComplete?: () => void
+  approvalHash?: string
+  approvalRequired: boolean
+  isCheckingAllowance: boolean
+  isApproving: boolean
+  isApprovalConfirming: boolean
+  isSendingRoute: boolean
+  isRouteConfirming: boolean
+  lifiStatus: LifiStatusState
 }
 
 function StepDot({ state }: { state: 'done' | 'active' | 'pending' }) {
@@ -40,20 +44,34 @@ function StepRow({ label, sublabel, state }: { label: string; sublabel?: string;
   )
 }
 
-export function ExecutionTracker({ txHash, fromChainId, isSending, isConfirming, onComplete }: ExecutionTrackerProps) {
-  const { status: lifiStatus } = useLifiStatus(
-    txHash && !isConfirming ? txHash : undefined,
-    fromChainId
-  )
-
-  // Notify parent on completion
-  if (lifiStatus === 'DONE' && onComplete) {
-    onComplete()
-  }
-
+export function ExecutionTracker({
+  txHash,
+  approvalHash,
+  approvalRequired,
+  isCheckingAllowance,
+  isApproving,
+  isApprovalConfirming,
+  isSendingRoute,
+  isRouteConfirming,
+  lifiStatus,
+}: ExecutionTrackerProps) {
   // Determine step states
-  const signState: 'done' | 'active' | 'pending' = txHash ? 'done' : isSending ? 'active' : 'pending'
-  const confirmState: 'done' | 'active' | 'pending' = !txHash ? 'pending' : !isConfirming && lifiStatus !== 'idle' ? 'done' : isConfirming ? 'active' : 'pending'
+  const approvalState: 'done' | 'active' | 'pending' = !approvalRequired
+    ? 'done'
+    : approvalHash && !isApprovalConfirming
+      ? 'done'
+      : isCheckingAllowance || isApproving || isApprovalConfirming
+        ? 'active'
+        : 'pending'
+
+  const signState: 'done' | 'active' | 'pending' = txHash ? 'done' : isSendingRoute ? 'active' : 'pending'
+  const confirmState: 'done' | 'active' | 'pending' = !txHash
+    ? 'pending'
+    : !isRouteConfirming && lifiStatus !== 'idle'
+      ? 'done'
+      : isRouteConfirming
+        ? 'active'
+        : 'pending'
 
   let routeState: 'done' | 'active' | 'pending' = 'pending'
   if (lifiStatus === 'DONE') routeState = 'done'
@@ -64,9 +82,26 @@ export function ExecutionTracker({ txHash, fromChainId, isSending, isConfirming,
       <h3 className="text-lg font-semibold text-white mb-4">Executing move</h3>
 
       <div className="space-y-1">
+        {approvalRequired && (
+          <StepRow
+            label="Token approval"
+            sublabel={
+              approvalState === 'active'
+                ? isCheckingAllowance
+                  ? 'Checking allowance...'
+                  : isApproving
+                    ? 'Confirm approval in your wallet...'
+                    : 'Waiting for approval confirmation...'
+                : approvalState === 'done'
+                  ? 'Allowance ready'
+                  : undefined
+            }
+            state={approvalState}
+          />
+        )}
         <StepRow
-          label="Wallet signature"
-          sublabel={signState === 'active' ? 'Confirm in your wallet...' : signState === 'done' ? 'Signed' : undefined}
+          label="Route signature"
+          sublabel={signState === 'active' ? 'Confirm route in your wallet...' : signState === 'done' ? 'Signed' : undefined}
           state={signState}
         />
         <StepRow

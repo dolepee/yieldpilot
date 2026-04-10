@@ -46,6 +46,29 @@ export const ERC20_BALANCE_ABI = [
   },
 ] as const
 
+export const ERC20_ALLOWANCE_ABI = [
+  {
+    name: 'allowance',
+    type: 'function',
+    stateMutability: 'view',
+    inputs: [
+      { name: 'owner', type: 'address' },
+      { name: 'spender', type: 'address' },
+    ],
+    outputs: [{ name: '', type: 'uint256' }],
+  },
+  {
+    name: 'approve',
+    type: 'function',
+    stateMutability: 'nonpayable',
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'value', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+  },
+] as const
+
 export const EARN_API_BASE = 'https://earn.li.fi'
 export const COMPOSER_API_BASE = 'https://li.quest'
 

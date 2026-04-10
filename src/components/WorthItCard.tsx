@@ -7,6 +7,7 @@ interface WorthItCardProps {
   mandateName: string
   onExecute?: () => void
   isExecuting?: boolean
+  actionLabel?: string
 }
 
 function MetricRow({ label, value, highlight }: { label: string; value: string; highlight?: 'green' | 'red' | 'yellow' }) {
@@ -23,7 +24,7 @@ function MetricRow({ label, value, highlight }: { label: string; value: string; 
   )
 }
 
-export function WorthItCard({ analysis, mandateName, onExecute, isExecuting }: WorthItCardProps) {
+export function WorthItCard({ analysis, mandateName, onExecute, isExecuting, actionLabel }: WorthItCardProps) {
   const isApproved = analysis.verdict === 'approved'
 
   return (
@@ -106,7 +107,7 @@ export function WorthItCard({ analysis, mandateName, onExecute, isExecuting }: W
           disabled={isExecuting}
           className="w-full py-3 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
         >
-          {isExecuting ? 'Executing...' : 'Execute move'}
+          {isExecuting ? actionLabel || 'Executing...' : 'Execute move'}
         </button>
       )}
 

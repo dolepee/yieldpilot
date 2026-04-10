@@ -25,7 +25,6 @@ The core differentiator is the refusal logic. YieldPilot says "no" when a move i
 - `GET /v1/earn/vaults` with full pagination across all 659+ vaults
 - `GET /v1/earn/chains` for supported chain metadata
 - `GET /v1/earn/protocols` for protocol metadata and maturity scoring
-- `GET /v1/earn/portfolio/:address/positions` for existing vault positions
 
 ### Composer (li.quest)
 
@@ -55,7 +54,7 @@ Before recommending any move, YieldPilot:
 
 1. Fetches a real Composer quote for the route
 2. Extracts total gas + fee cost in USD
-3. Calculates APY delta vs current position (or idle at 0%)
+3. Calculates APY delta vs idle stablecoins at 0%
 4. Computes daily incremental yield
 5. Derives break-even days = route cost / daily yield improvement
 6. Compares against mandate threshold

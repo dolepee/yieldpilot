@@ -1,6 +1,6 @@
 'use client'
 
-import { useStablecoinBalances, type TokenBalance } from '@/hooks/useStablecoinBalances'
+import type { TokenBalance } from '@/hooks/useStablecoinBalances'
 import { CHAIN_META } from '@/lib/constants'
 
 function ChainBalanceRow({ balance }: { balance: TokenBalance }) {
@@ -29,13 +29,22 @@ function ChainBalanceRow({ balance }: { balance: TokenBalance }) {
 }
 
 interface WalletSnapshotProps {
-  address: `0x${string}`
+  balances: TokenBalance[]
+  totalUsd: number
+  isLoading: boolean
+  error: string | null
+  isDemoMode?: boolean
   onDemoMode?: () => void
 }
 
-export function WalletSnapshot({ address, onDemoMode }: WalletSnapshotProps) {
-  const { balances, totalUsd, isLoading, error } = useStablecoinBalances(address)
-
+export function WalletSnapshot({
+  balances,
+  totalUsd,
+  isLoading,
+  error,
+  isDemoMode,
+  onDemoMode,
+}: WalletSnapshotProps) {
   if (isLoading) {
     return (
       <div className="card p-6">
@@ -82,7 +91,9 @@ export function WalletSnapshot({ address, onDemoMode }: WalletSnapshotProps) {
           <p className="text-2xl font-bold text-white">
             ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
-          <p className="text-xs text-gray-500">idle across {balances.length} position{balances.length > 1 ? 's' : ''}</p>
+          <p className="text-xs text-gray-500">
+            {isDemoMode ? 'demo balances' : 'idle'} across {balances.length} position{balances.length > 1 ? 's' : ''}
+          </p>
         </div>
       </div>
       <div className="divide-y divide-white/5">
