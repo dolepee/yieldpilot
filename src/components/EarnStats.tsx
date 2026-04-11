@@ -10,14 +10,13 @@ interface EarnStatsProps {
 }
 
 export function EarnStats({ vaults, chains, isLoading, error }: EarnStatsProps) {
-
   if (isLoading) {
     return (
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {[1, 2, 3].map(i => (
-          <div key={i} className="card p-4 animate-pulse">
-            <div className="h-4 bg-white/5 rounded w-16 mb-2" />
-            <div className="h-6 bg-white/5 rounded w-10" />
+          <div key={i} className="card animate-pulse p-6">
+            <div className="mb-4 h-3 w-28 rounded bg-white/5" />
+            <div className="h-8 w-16 rounded bg-white/5" />
           </div>
         ))}
       </div>
@@ -26,9 +25,9 @@ export function EarnStats({ vaults, chains, isLoading, error }: EarnStatsProps) 
 
   if (error) {
     return (
-      <div className="card p-4 border-red-500/20">
-        <p className="text-sm text-red-400">Failed to load LI.FI Earn market data.</p>
-        <p className="mt-1 text-xs text-gray-500">{error}</p>
+      <div className="card border-white/10 p-6">
+        <p className="text-sm text-white">Failed to load LI.FI Earn market data.</p>
+        <p className="mt-2 font-mono text-xs text-white/50">{error}</p>
       </div>
     )
   }
@@ -39,27 +38,18 @@ export function EarnStats({ vaults, chains, isLoading, error }: EarnStatsProps) 
     : 0
 
   return (
-    <div className="card p-4">
-      <div className="mb-3">
-        <p className="text-xs uppercase tracking-wide text-gray-500">LI.FI Earn market universe</p>
-        <p className="mt-1 text-xs text-gray-600">
-          Global vault data loaded before wallet connect. Your wallet-specific recommendation appears after balance scan.
-        </p>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="card p-6">
+        <p className="mb-4 text-xs uppercase tracking-[0.18em] text-white/40">Vaults Indexed</p>
+        <p className="font-mono text-3xl font-semibold tabular-nums text-white">{vaults.length}</p>
       </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-xl bg-white/[0.02] p-3">
-          <p className="text-xs text-gray-500 mb-1">Vaults indexed</p>
-          <p className="text-xl font-bold text-white">{vaults.length}</p>
-        </div>
-        <div className="rounded-xl bg-white/[0.02] p-3">
-          <p className="text-xs text-gray-500 mb-1">Supported chains</p>
-          <p className="text-xl font-bold text-white">{chains.length}</p>
-        </div>
-        <div className="rounded-xl bg-white/[0.02] p-3">
-          <p className="text-xs text-gray-500 mb-1">Avg listed stablecoin APY</p>
-          <p className="text-xl font-bold text-green-400">{avgApy.toFixed(2)}%</p>
-        </div>
+      <div className="card p-6">
+        <p className="mb-4 text-xs uppercase tracking-[0.18em] text-white/40">Supported Chains</p>
+        <p className="font-mono text-3xl font-semibold tabular-nums text-white">{chains.length}</p>
+      </div>
+      <div className="card border-[#00d4aa]/20 p-6">
+        <p className="mb-4 text-xs uppercase tracking-[0.18em] text-white/40">Avg. Best Stablecoin APY</p>
+        <p className="font-mono text-3xl font-semibold tabular-nums text-[#00d4aa]">{avgApy.toFixed(2)}%</p>
       </div>
     </div>
   )

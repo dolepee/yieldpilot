@@ -410,15 +410,14 @@ export default function Home() {
   return (
     <>
       <Header />
-      <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-8 space-y-6">
+      <main className="mx-auto w-full max-w-6xl flex-1 space-y-12 px-4 py-12 sm:px-6 lg:py-16">
         {/* Hero */}
-        <div className="text-center mb-4">
-          <h1 className="text-3xl sm:text-4xl font-bold text-white mb-3">
-            Tell YieldPilot your rules
+        <div className="mx-auto max-w-3xl text-center">
+          <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-6xl">
+            Define Your Yield Mandate.
           </h1>
-          <p className="text-gray-400 max-w-lg mx-auto">
-            Translate natural language into a real yield mandate, score vaults deterministically,
-            and only execute when the route is economically worth it.
+          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/50">
+            AI translates plain-English strategy into deterministic vault filters, route economics, and execution constraints before capital moves.
           </p>
         </div>
 
@@ -435,13 +434,13 @@ export default function Home() {
           <>
             {/* Demo mode banner */}
             {isDemoMode && (
-              <div className="card p-3 border-yellow-500/20 flex items-center justify-between">
-                <p className="text-xs text-yellow-400">
+              <div className="card flex items-center justify-between border-white/10 p-4">
+                <p className="text-xs text-white/50">
                   Demo mode: using simulated balances. Execution is disabled.
                 </p>
                 <button
                   onClick={() => { setIsDemoMode(false); setSelectedMandate(null); setIntentPlan(null); setStrategyPrompt('') }}
-                  className="text-xs text-gray-500 hover:text-gray-400"
+                  className="text-xs text-[#00d4aa] hover:opacity-80"
                 >
                   Exit demo
                 </button>
@@ -509,8 +508,8 @@ export default function Home() {
 
             {/* Demo mode note on recommendation */}
             {recommendation && recommendation.type === 'recommended' && isDemoMode && !worthItAnalysis && (
-              <div className="card p-4 border-blue-500/10">
-                <p className="text-xs text-gray-500">
+              <div className="card border-white/10 p-4">
+                <p className="text-xs text-white/45">
                   In demo mode, execution is disabled. Connect a wallet with real stablecoins to execute moves.
                 </p>
               </div>
@@ -518,14 +517,14 @@ export default function Home() {
 
             {/* Quote error */}
             {(quoteError || executionError) && (
-              <div className="card p-4 border-red-500/20">
-                <p className="text-sm text-red-400">
+              <div className="card border-white/10 p-4">
+                <p className="font-mono text-sm text-white/70">
                   {quoteError ? `Quote error: ${quoteError}` : `Execution error: ${executionError}`}
                 </p>
                 {quoteError && (
                   <button
                     onClick={() => { setQuoteError(null); handleAnalyze() }}
-                    className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+                    className="mt-3 text-xs text-[#00d4aa] hover:opacity-80"
                   >
                     Retry
                   </button>
@@ -586,26 +585,26 @@ export default function Home() {
             {activeMandate && !recommendation && (earnData.isLoading || !isBalanceReady) && (
               <div className="card p-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-                  <p className="text-sm text-gray-400">Scanning vaults against your strategy...</p>
+                  <div className="h-2 w-2 rounded-full bg-[#00d4aa]" />
+                  <p className="text-sm text-white/50">Scanning vaults against your strategy...</p>
                 </div>
               </div>
             )}
           </>
         ) : (
-          <div className="card p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-600/10 flex items-center justify-center">
+          <div className="card p-10 text-center">
+            <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full border border-white/10 bg-[#121212]">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M19 7H5C3.89543 7 3 7.89543 3 9V18C3 19.1046 3.89543 20 5 20H19C20.1046 20 21 19.1046 21 18V9C21 7.89543 20.1046 7 19 7Z" stroke="#3B82F6" strokeWidth="1.5"/>
-                <path d="M16 14C16 14.5523 15.5523 15 15 15C14.4477 15 14 14.5523 14 14C14 13.4477 14.4477 13 15 13C15.5523 13 16 13.4477 16 14Z" fill="#3B82F6"/>
-                <path d="M3 9L7 4H17L21 9" stroke="#3B82F6" strokeWidth="1.5" strokeLinejoin="round"/>
+                <path d="M19 7H5C3.89543 7 3 7.89543 3 9V18C3 19.1046 3.89543 20 5 20H19C20.1046 20 21 19.1046 21 18V9C21 7.89543 20.1046 7 19 7Z" stroke="#00d4aa" strokeWidth="1.5"/>
+                <path d="M16 14C16 14.5523 15.5523 15 15 15C14.4477 15 14 14.5523 14 14C14 13.4477 14.4477 13 15 13C15.5523 13 16 13.4477 16 14Z" fill="#00d4aa"/>
+                <path d="M3 9L7 4H17L21 9" stroke="#00d4aa" strokeWidth="1.5" strokeLinejoin="round"/>
               </svg>
             </div>
-            <h2 className="text-xl font-semibold text-white mb-2">Connect your wallet</h2>
-            <p className="text-sm text-gray-400 mb-1">
+            <h2 className="mb-2 text-xl font-semibold text-white">Connect your wallet</h2>
+            <p className="mb-1 text-sm text-white/50">
               YieldPilot will scan your USDC and USDT balances across Ethereum, Base, Arbitrum, and Optimism.
             </p>
-            <p className="text-xs text-gray-600">
+            <p className="text-xs text-white/30">
               Read-only scan. No transactions without your approval.
             </p>
           </div>
@@ -613,8 +612,8 @@ export default function Home() {
 
         {/* Footer */}
         <div className="text-center pt-4">
-          <p className="text-xs text-gray-600">
-            Powered by <a href="https://li.fi" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-400">LI.FI</a> Earn Data API + Composer
+          <p className="text-xs text-white/25">
+            Powered by <a href="https://li.fi" target="_blank" rel="noopener noreferrer" className="text-[#00d4aa] hover:opacity-80">LI.FI</a> Earn Data API + Composer
           </p>
         </div>
       </main>

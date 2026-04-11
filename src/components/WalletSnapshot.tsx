@@ -2,27 +2,25 @@
 
 import type { TokenBalance } from '@/hooks/useStablecoinBalances'
 import { CHAIN_META } from '@/lib/constants'
+import { CircleDollarSign } from 'lucide-react'
 
 function ChainBalanceRow({ balance }: { balance: TokenBalance }) {
   const meta = CHAIN_META[balance.chainId]
   return (
-    <div className="flex items-center justify-between py-3 px-4 rounded-lg hover:bg-white/[0.02] transition-colors">
+    <div className="grid grid-cols-[1fr_auto] items-center gap-4 border-t border-white/10 py-4 first:border-t-0 md:grid-cols-[1.4fr_1fr_auto]">
       <div className="flex items-center gap-3">
-        <div
-          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white"
-          style={{ backgroundColor: meta?.color || '#666' }}
-        >
-          {meta?.name?.charAt(0) || '?'}
+        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#1a1a1a] text-[#00d4aa]">
+          <CircleDollarSign size={17} strokeWidth={1.7} />
         </div>
         <div>
           <p className="text-sm font-medium text-white">{balance.token}</p>
-          <p className="text-xs text-gray-500">{meta?.name || `Chain ${balance.chainId}`}</p>
+          <p className="text-xs text-white/40">Stablecoin</p>
         </div>
       </div>
-      <div className="text-right">
-        <p className="text-sm font-semibold text-white">
-          ${Number(balance.formatted).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </p>
+      <div className="hidden text-sm text-white/60 md:block">{meta?.name || `Chain ${balance.chainId}`}</div>
+      <div className="text-right font-mono tabular-nums">
+        <p className="text-sm font-semibold text-white">{Number(balance.formatted).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+        <p className="text-xs text-white/40">{balance.token}</p>
       </div>
     </div>
   )
@@ -47,10 +45,10 @@ export function WalletSnapshot({
 }: WalletSnapshotProps) {
   if (isLoading) {
     return (
-      <div className="card p-6">
+      <div className="card p-6 md:p-8">
         <div className="flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-gray-400">Scanning stablecoin balances across 4 chains...</p>
+          <div className="h-2 w-2 rounded-full bg-[#00d4aa]" />
+          <p className="text-sm text-white/60">Scanning stablecoin balances across supported chains...</p>
         </div>
       </div>
     )
@@ -58,23 +56,24 @@ export function WalletSnapshot({
 
   if (error) {
     return (
-      <div className="card p-6">
-        <p className="text-sm text-red-400">Failed to read balances: {error}</p>
+      <div className="card p-6 md:p-8">
+        <p className="text-sm text-white">Failed to read balances.</p>
+        <p className="mt-2 font-mono text-xs text-white/50">{error}</p>
       </div>
     )
   }
 
   if (balances.length === 0) {
     return (
-      <div className="card p-6">
-        <p className="text-sm text-gray-400">No stablecoin balances found on Ethereum, Base, Arbitrum, or Optimism.</p>
-        <p className="text-xs text-gray-600 mt-2">
+      <div className="card p-6 md:p-8">
+        <p className="text-sm text-white/70">No stablecoin balances found on Ethereum, Base, Arbitrum, or Optimism.</p>
+        <p className="mt-2 text-xs text-white/40">
           Connect a wallet with USDC or USDT to get a personalized recommendation.
         </p>
         {onDemoMode && (
           <button
             onClick={onDemoMode}
-            className="mt-3 text-sm text-blue-400 hover:text-blue-300 underline underline-offset-2"
+            className="mt-5 rounded-md border border-[#00d4aa]/40 px-4 py-2 text-sm font-medium text-[#00d4aa] transition-colors hover:border-[#00d4aa]"
           >
             Try demo mode with simulated balances
           </button>
@@ -84,19 +83,27 @@ export function WalletSnapshot({
   }
 
   return (
-    <div className="card p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-white">Your Stablecoins</h2>
+    <div className="card p-6 md:p-8">
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs uppercase tracking-[0.18em] text-white/40">Wallet Scan Panel</p>
+          <h2 className="mt-2 text-lg font-semibold text-white">Scanned Stablecoins</h2>
+        </div>
         <div className="text-right">
-          <p className="text-2xl font-bold text-white">
+          <p className="font-mono text-2xl font-semibold tabular-nums text-white">
             ${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-white/40">
             {isDemoMode ? 'demo balances' : 'idle'} across {balances.length} position{balances.length > 1 ? 's' : ''}
           </p>
         </div>
       </div>
-      <div className="divide-y divide-white/5">
+      <div className="mb-2 hidden grid-cols-[1.4fr_1fr_auto] gap-4 px-1 text-[11px] uppercase tracking-[0.18em] text-white/35 md:grid">
+        <span>Token</span>
+        <span>Chain</span>
+        <span className="text-right">Balance</span>
+      </div>
+      <div>
         {balances.map((b) => (
           <ChainBalanceRow key={`${b.chainId}-${b.token}`} balance={b} />
         ))}

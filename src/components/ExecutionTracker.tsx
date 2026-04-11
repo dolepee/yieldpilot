@@ -17,8 +17,8 @@ interface ExecutionTrackerProps {
 function StepDot({ state }: { state: 'done' | 'active' | 'pending' }) {
   if (state === 'done') {
     return (
-      <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="3" strokeLinecap="round">
+      <div className="w-6 h-6 rounded-full border border-[#00d4aa]/20 bg-[#00d4aa]/10 flex items-center justify-center">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#00d4aa" strokeWidth="3" strokeLinecap="round">
           <path d="M20 6L9 17l-5-5"/>
         </svg>
       </div>
@@ -26,7 +26,7 @@ function StepDot({ state }: { state: 'done' | 'active' | 'pending' }) {
   }
   if (state === 'active') {
     return (
-      <div className="w-6 h-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+      <div className="w-6 h-6 rounded-full border-2 border-[#00d4aa] border-t-transparent animate-spin" />
     )
   }
   return <div className="w-6 h-6 rounded-full bg-white/5 border border-white/10" />
@@ -37,8 +37,8 @@ function StepRow({ label, sublabel, state }: { label: string; sublabel?: string;
     <div className="flex items-center gap-3 py-2">
       <StepDot state={state} />
       <div>
-        <p className={`text-sm font-medium ${state === 'pending' ? 'text-gray-600' : 'text-white'}`}>{label}</p>
-        {sublabel && <p className="text-xs text-gray-500">{sublabel}</p>}
+        <p className={`text-sm font-medium ${state === 'pending' ? 'text-white/25' : 'text-white'}`}>{label}</p>
+        {sublabel && <p className="font-mono text-xs text-white/40">{sublabel}</p>}
       </div>
     </div>
   )
@@ -123,8 +123,8 @@ export function ExecutionTracker({
       </div>
 
       {lifiStatus === 'FAILED' && (
-        <div className="mt-4 p-3 rounded-lg bg-red-500/5 border border-red-500/10">
-          <p className="text-sm text-red-400">Route execution failed. Your funds may have been returned to your wallet.</p>
+        <div className="mt-4 p-3 rounded-md bg-[#1a1a1a] border border-white/10">
+          <p className="text-sm text-white/60">Route execution failed. Your funds may have been returned to your wallet.</p>
         </div>
       )}
     </div>

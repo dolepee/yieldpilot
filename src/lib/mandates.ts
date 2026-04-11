@@ -12,7 +12,9 @@ export interface MandateConfig {
   protocolTierFloor: number // minimum protocol maturity tier (from constants)
 }
 
-export const MANDATES: Record<string, MandateConfig> = {
+export type MandateKey = 'conservative' | 'balanced' | 'aggressive'
+
+export const MANDATES: Record<MandateKey, MandateConfig> = {
   conservative: {
     name: 'Conservative',
     description: 'Prioritize safety. Same-chain only, mature protocols, deep liquidity. Only move if break-even is fast.',
@@ -53,5 +55,3 @@ export const MANDATES: Record<string, MandateConfig> = {
     protocolTierFloor: 3,
   },
 }
-
-export type MandateKey = keyof typeof MANDATES
