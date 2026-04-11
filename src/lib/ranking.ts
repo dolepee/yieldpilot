@@ -20,6 +20,7 @@ export interface ScoredVault {
 export interface RecommendationResult {
   type: 'recommended' | 'refused'
   top: ScoredVault | null
+  candidates: ScoredVault[]
   refusalReasons: string[]
   candidatesScanned: number
   candidatesFiltered: number
@@ -168,6 +169,7 @@ export function recommend(
     return {
       type: 'refused',
       top: null,
+      candidates: [],
       refusalReasons: ['No stablecoin balances detected.'],
       candidatesScanned: vaults.length,
       candidatesFiltered: 0,
@@ -180,6 +182,7 @@ export function recommend(
     return {
       type: 'refused',
       top: null,
+      candidates: [],
       refusalReasons: reasons,
       candidatesScanned: vaults.length,
       candidatesFiltered: 0,
@@ -198,6 +201,7 @@ export function recommend(
     return {
       type: 'refused',
       top,
+      candidates: scored,
       refusalReasons: [
         `Best available APY (${top.vault.analytics.apy.total.toFixed(2)}%) does not meet the minimum improvement threshold of ${(mandate.minApyImprovementBps / 100).toFixed(1)}%.`,
       ],
@@ -209,6 +213,7 @@ export function recommend(
   return {
     type: 'recommended',
     top,
+    candidates: scored,
     refusalReasons: [],
     candidatesScanned: vaults.length,
     candidatesFiltered: passed.length,

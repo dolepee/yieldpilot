@@ -16,13 +16,17 @@ import { ExecutionTracker } from '@/components/ExecutionTracker'
 import { useEarnData } from '@/hooks/useEarnData'
 import { useStablecoinBalances, type TokenBalance } from '@/hooks/useStablecoinBalances'
 import { MANDATES, type MandateConfig, type MandateKey } from '@/lib/mandates'
-import { recommend, type RecommendationResult } from '@/lib/ranking'
+import { recommend, type RecommendationResult, type ScoredVault } from '@/lib/ranking'
 import { analyzeWorthIt, type WorthItAnalysis } from '@/lib/worth-it'
 import { DEMO_BALANCES } from '@/lib/demo'
 import type { ComposerQuote } from '@/lib/composer'
 import { useLifiStatus } from '@/hooks/useLifiStatus'
 import { ERC20_ALLOWANCE_ABI, TARGET_CHAINS } from '@/lib/constants'
 import type { IntentPlan } from '@/lib/intent'
+
+function candidateKey(candidate: ScoredVault): string {
+  return `${candidate.vault.slug}-${candidate.matchedBalance.chainId}-${candidate.matchedBalance.token}`
+}
 
 export default function Home() {
   const { address, isConnected } = useAccount()
@@ -47,6 +51,8 @@ export default function Home() {
   const [activeRouteHash, setActiveRouteHash] = useState<`0x${string}` | undefined>()
   const [activeRouteFromChainId, setActiveRouteFromChainId] = useState<number | undefined>()
   const [activeApprovalHash, setActiveApprovalHash] = useState<`0x${string}` | undefined>()
+  const [selectedCandidateKey, setSelectedCandidateKey] = useState<string | null>(null)
+  const [depositAmount, setDepositAmount] = useState('')
 
   const { sendTransactionAsync, isPending: isSending } = useSendTransaction()
   const { writeContractAsync, isPending: isApproving } = useWriteContract()
@@ -80,6 +86,31 @@ export default function Home() {
 
   const { status: lifiStatus } = useLifiStatus(activeRouteHash, activeRouteFromChainId)
 
+  const selectedScoredVault = useMemo(() => {
+    if (!recommendation?.candidates.length) return null
+    return recommendation.candidates.find((candidate) => candidateKey(candidate) === selectedCandidateKey)
+      ?? recommendation.top
+  }, [recommendation, selectedCandidateKey])
+
+  useEffect(() => {
+    if (!recommendation?.top) {
+      setSelectedCandidateKey(null)
+      setDepositAmount('')
+      return
+    }
+
+    const nextKey = candidateKey(recommendation.top)
+    setSelectedCandidateKey((current) => {
+      if (current && recommendation.candidates.some((candidate) => candidateKey(candidate) === current)) return current
+      return nextKey
+    })
+  }, [recommendation])
+
+  useEffect(() => {
+    if (!selectedScoredVault) return
+    setDepositAmount(selectedScoredVault.matchedBalance.formatted)
+  }, [selectedCandidateKey, selectedScoredVault])
+
   const executeRouteTransaction = useCallback(async () => {
     if (!composerQuote?.transactionRequest) return
 
@@ -111,7 +142,7 @@ export default function Home() {
 
   // Fetch Composer quote and run worth-it analysis
   const handleAnalyze = useCallback(async () => {
-    if (!recommendation?.top || !activeMandate || !address) return
+    if (!selectedScoredVault || !activeMandate || !address) return
 
     setIsLoadingQuote(true)
     setQuoteError(null)
@@ -124,23 +155,46 @@ export default function Home() {
     setActiveRouteFromChainId(undefined)
     setActiveApprovalHash(undefined)
 
-    const scored = recommendation.top
+    const scored = selectedScoredVault
     const vault = scored.vault
     const balance = scored.matchedBalance
+    const normalizedAmount = depositAmount.trim()
+    const amountUsd = Number(normalizedAmount)
 
-    const amount = parseUnits(balance.formatted, balance.decimals).toString()
+    if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
+      setQuoteError('Enter an amount greater than 0.')
+      setIsLoadingQuote(false)
+      return
+    }
 
-    const params = new URLSearchParams({
-      fromChain: String(balance.chainId),
-      toChain: String(vault.chainId),
-      fromToken: balance.address,
-      toToken: vault.address as string,
-      fromAddress: address,
-      toAddress: address,
-      fromAmount: amount,
-    })
+    if (amountUsd > balance.usdValue) {
+      setQuoteError(`Amount exceeds your ${balance.token} balance on ${balance.chainName}.`)
+      setIsLoadingQuote(false)
+      return
+    }
 
     try {
+      const amount = parseUnits(normalizedAmount, balance.decimals).toString()
+      const quoteScored: ScoredVault = {
+        ...scored,
+        matchedBalance: {
+          ...balance,
+          balance: BigInt(amount),
+          formatted: normalizedAmount,
+          usdValue: amountUsd,
+        },
+      }
+
+      const params = new URLSearchParams({
+        fromChain: String(balance.chainId),
+        toChain: String(vault.chainId),
+        fromToken: balance.address,
+        toToken: vault.address as string,
+        fromAddress: address,
+        toAddress: address,
+        fromAmount: amount,
+      })
+
       const res = await fetch(`/api/quote?${params}`)
       const data = await res.json()
 
@@ -153,14 +207,14 @@ export default function Home() {
       const quote = data as ComposerQuote
       setComposerQuote(quote)
 
-      const analysis = analyzeWorthIt(quote, scored, activeMandate)
+      const analysis = analyzeWorthIt(quote, quoteScored, activeMandate, 0, amountUsd)
       setWorthItAnalysis(analysis)
     } catch (e) {
       setQuoteError(e instanceof Error ? e.message : 'Failed to get quote')
     } finally {
       setIsLoadingQuote(false)
     }
-  }, [recommendation, activeMandate, address])
+  }, [selectedScoredVault, activeMandate, address, depositAmount])
 
   const handleGenerateIntent = useCallback(async () => {
     if (!strategyPrompt.trim()) return
@@ -178,6 +232,8 @@ export default function Home() {
     setActiveRouteHash(undefined)
     setActiveRouteFromChainId(undefined)
     setActiveApprovalHash(undefined)
+    setSelectedCandidateKey(null)
+    setDepositAmount('')
 
     try {
       const response = await fetch('/api/intent', {
@@ -286,6 +342,8 @@ export default function Home() {
     setActiveRouteHash(undefined)
     setActiveRouteFromChainId(undefined)
     setActiveApprovalHash(undefined)
+    setSelectedCandidateKey(null)
+    setDepositAmount('')
   }
 
   const handleUsePresetInstead = useCallback(() => {
@@ -301,10 +359,39 @@ export default function Home() {
     setActiveRouteHash(undefined)
     setActiveRouteFromChainId(undefined)
     setActiveApprovalHash(undefined)
+    setSelectedCandidateKey(null)
+    setDepositAmount('')
+  }, [])
+
+  const handleCandidateSelect = useCallback((candidate: ScoredVault) => {
+    setSelectedCandidateKey(candidateKey(candidate))
+    setDepositAmount(candidate.matchedBalance.formatted)
+    setWorthItAnalysis(null)
+    setComposerQuote(null)
+    setQuoteError(null)
+    setExecutionError(null)
+    setApprovalRequired(false)
+    setPendingRouteAfterApproval(false)
+    setActiveRouteHash(undefined)
+    setActiveRouteFromChainId(undefined)
+    setActiveApprovalHash(undefined)
+  }, [])
+
+  const handleDepositAmountChange = useCallback((value: string) => {
+    setDepositAmount(value)
+    setWorthItAnalysis(null)
+    setComposerQuote(null)
+    setQuoteError(null)
+    setExecutionError(null)
+    setApprovalRequired(false)
+    setPendingRouteAfterApproval(false)
+    setActiveRouteHash(undefined)
+    setActiveRouteFromChainId(undefined)
+    setActiveApprovalHash(undefined)
   }, [])
 
   const showExecutionTracker = !!activeRouteHash && worthItAnalysis?.verdict === 'approved' && !(
-    lifiStatus === 'DONE' && activeRouteHash && worthItAnalysis && recommendation?.top && activeMandate
+    lifiStatus === 'DONE' && activeRouteHash && worthItAnalysis && selectedScoredVault && activeMandate
   )
   const isBusy = isCheckingAllowance || isSwitchingChain || isApproving || isApprovalConfirming || isSending || isConfirming
   const executeButtonLabel = isCheckingAllowance
@@ -318,7 +405,7 @@ export default function Home() {
         : isSending
           ? 'Confirm route...'
           : 'Executing...'
-  const showStoryCard = lifiStatus === 'DONE' && activeRouteHash && worthItAnalysis && recommendation?.top && activeMandate
+  const showStoryCard = lifiStatus === 'DONE' && activeRouteHash && worthItAnalysis && selectedScoredVault && activeMandate
 
   return (
     <>
@@ -411,6 +498,10 @@ export default function Home() {
               <RecommendationCard
                 result={recommendation}
                 mandateName={activeMandateName ?? 'Custom mandate'}
+                selectedCandidate={selectedScoredVault}
+                depositAmount={depositAmount}
+                onDepositAmountChange={handleDepositAmountChange}
+                onSelectCandidate={handleCandidateSelect}
                 onExecute={recommendation.type === 'recommended' && !isDemoMode ? handleAnalyze : undefined}
                 isLoadingQuote={isLoadingQuote}
               />
@@ -454,18 +545,18 @@ export default function Home() {
             )}
 
             {/* Worth-it refusal story card */}
-            {worthItAnalysis && worthItAnalysis.verdict === 'refused' && activeMandate && recommendation?.top && (
+            {worthItAnalysis && worthItAnalysis.verdict === 'refused' && activeMandate && selectedScoredVault && (
               <YieldStoryCard
                 analysis={worthItAnalysis}
                 mandateName={activeMandateName ?? 'Custom mandate'}
-                vaultName={recommendation.top.vault.name}
-                protocolName={recommendation.top.vault.protocol.name}
-                chainId={recommendation.top.vault.chainId}
+                vaultName={selectedScoredVault.vault.name}
+                protocolName={selectedScoredVault.vault.protocol.name}
+                chainId={selectedScoredVault.vault.chainId}
               />
             )}
 
             {/* Screen 5: Execution Tracker */}
-            {showExecutionTracker && recommendation?.top && (
+            {showExecutionTracker && selectedScoredVault && (
               <ExecutionTracker
                 txHash={activeRouteHash}
                 approvalHash={activeApprovalHash}
@@ -484,9 +575,9 @@ export default function Home() {
               <YieldStoryCard
                 analysis={worthItAnalysis!}
                 mandateName={activeMandateName ?? 'Custom mandate'}
-                vaultName={recommendation!.top!.vault.name}
-                protocolName={recommendation!.top!.vault.protocol.name}
-                chainId={recommendation!.top!.vault.chainId}
+                vaultName={selectedScoredVault!.vault.name}
+                protocolName={selectedScoredVault!.vault.protocol.name}
+                chainId={selectedScoredVault!.vault.chainId}
                 txHash={activeRouteHash}
               />
             )}

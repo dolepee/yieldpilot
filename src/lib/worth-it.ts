@@ -23,10 +23,11 @@ export function analyzeWorthIt(
   quote: ComposerQuote,
   scored: ScoredVault,
   mandate: MandateConfig,
-  currentApy: number = 0 // idle = 0%
+  currentApy: number = 0, // idle = 0%
+  amountUsdOverride?: number
 ): WorthItAnalysis {
   const { gasCostUsd, feeCostUsd, totalCostUsd } = extractRouteCost(quote)
-  const amountUsd = scored.matchedBalance.usdValue
+  const amountUsd = amountUsdOverride ?? scored.matchedBalance.usdValue
   const newApy = scored.vault.analytics.apy.total
   const apyDeltaPct = newApy - currentApy
 

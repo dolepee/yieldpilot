@@ -1,11 +1,15 @@
 'use client'
 
-import type { RecommendationResult } from '@/lib/ranking'
+import type { RecommendationResult, ScoredVault } from '@/lib/ranking'
 import { CHAIN_META } from '@/lib/constants'
 
 interface RecommendationCardProps {
   result: RecommendationResult
   mandateName: string
+  selectedCandidate: ScoredVault | null
+  depositAmount: string
+  onDepositAmountChange: (value: string) => void
+  onSelectCandidate: (candidate: ScoredVault) => void
   onExecute?: () => void
   isLoadingQuote?: boolean
 }
@@ -46,15 +50,76 @@ function RefusalCard({ result, mandateName }: { result: RecommendationResult; ma
   )
 }
 
-export function RecommendationCard({ result, mandateName, onExecute, isLoadingQuote }: RecommendationCardProps) {
-  if (result.type === 'refused' || !result.top) {
+function CandidateOption({
+  candidate,
+  isSelected,
+  onSelect,
+}: {
+  candidate: ScoredVault
+  isSelected: boolean
+  onSelect: () => void
+}) {
+  const tvl = Number(candidate.vault.analytics.tvl.usd)
+  const chainMeta = CHAIN_META[candidate.vault.chainId]
+
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`w-full rounded-xl border p-3 text-left transition-colors ${
+        isSelected
+          ? 'border-green-500/40 bg-green-500/10'
+          : 'border-white/8 bg-white/[0.02] hover:border-white/15'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-white">{candidate.vault.name}</span>
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: chainMeta?.color || '#666' }}
+            />
+            <span className="text-xs text-gray-500">{candidate.vault.network}</span>
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            {candidate.vault.protocol.name} · ${tvl >= 1_000_000 ? `${(tvl / 1_000_000).toFixed(0)}M` : `${(tvl / 1_000).toFixed(0)}K`} TVL
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-sm font-semibold text-green-400">{candidate.vault.analytics.apy.total.toFixed(2)}%</p>
+          <p className="text-xs text-gray-500">score {candidate.score.toFixed(1)}</p>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+export function RecommendationCard({
+  result,
+  mandateName,
+  selectedCandidate,
+  depositAmount,
+  onDepositAmountChange,
+  onSelectCandidate,
+  onExecute,
+  isLoadingQuote,
+}: RecommendationCardProps) {
+  if (result.type === 'refused' || !result.top || !selectedCandidate) {
     return <RefusalCard result={result} mandateName={mandateName} />
   }
 
-  const { vault, score, reasons, matchedBalance } = result.top
+  const { vault, score, reasons, matchedBalance } = selectedCandidate
   const tvl = Number(vault.analytics.tvl.usd)
   const chainMeta = CHAIN_META[vault.chainId]
   const isSameChain = matchedBalance.chainId === vault.chainId
+  const maxAmount = matchedBalance.usdValue
+  const amountValue = Number(depositAmount || '0')
+  const amountError = !Number.isFinite(amountValue) || amountValue <= 0
+    ? 'Enter an amount greater than 0.'
+    : amountValue > maxAmount
+      ? `Amount exceeds your ${matchedBalance.token} balance.`
+      : null
 
   return (
     <div className="card p-6 border-green-500/20 glow-blue">
@@ -133,16 +198,65 @@ export function RecommendationCard({ result, mandateName, onExecute, isLoadingQu
         <p className="text-xs text-gray-600">
           Score: {score.toFixed(1)}/100 across {result.candidatesFiltered} compliant vaults
         </p>
-        {onExecute && (
-          <button
-            onClick={onExecute}
-            disabled={isLoadingQuote}
-            className="px-5 py-2.5 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
-          >
-            {isLoadingQuote ? 'Analyzing route...' : 'Analyze move'}
-          </button>
-        )}
       </div>
-    </div>
+
+      <div className="mt-5 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-gray-500">Amount to analyze</p>
+            <p className="text-xs text-gray-600">
+              Available: {maxAmount.toLocaleString(undefined, { maximumFractionDigits: 6 })} {matchedBalance.token} on {matchedBalance.chainName}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onDepositAmountChange(matchedBalance.formatted)}
+            className="text-xs text-green-400 hover:text-green-300"
+          >
+            Use max
+          </button>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <input
+            type="number"
+            min="0"
+            max={matchedBalance.formatted}
+            step="0.000001"
+            value={depositAmount}
+            onChange={(event) => onDepositAmountChange(event.target.value)}
+            className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none focus:border-green-500/40"
+          />
+          {onExecute && (
+            <button
+              onClick={onExecute}
+              disabled={isLoadingQuote || !!amountError}
+              className="rounded-xl bg-green-600 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-green-500 disabled:cursor-not-allowed disabled:bg-gray-600 sm:min-w-36"
+            >
+              {isLoadingQuote ? 'Analyzing...' : 'Analyze move'}
+            </button>
+          )}
+        </div>
+        {amountError && <p className="mt-2 text-xs text-red-400">{amountError}</p>}
+      </div>
+
+      {result.candidates.length > 1 && (
+        <div className="mt-5">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-xs uppercase tracking-wide text-gray-500">Other compliant options</p>
+            <p className="text-xs text-gray-600">Top {Math.min(result.candidates.length, 5)} by score</p>
+          </div>
+          <div className="grid gap-2">
+            {result.candidates.slice(0, 5).map((candidate) => (
+              <CandidateOption
+                key={`${candidate.vault.slug}-${candidate.matchedBalance.chainId}-${candidate.matchedBalance.token}`}
+                candidate={candidate}
+                isSelected={candidate.vault.slug === selectedCandidate.vault.slug && candidate.matchedBalance.chainId === selectedCandidate.matchedBalance.chainId}
+                onSelect={() => onSelectCandidate(candidate)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+      </div>
   )
 }
