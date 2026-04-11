@@ -46,17 +46,6 @@ function isPresetKey(value: unknown): value is MandateKey {
   return value === 'conservative' || value === 'balanced' || value === 'aggressive'
 }
 
-function normalizeChains(input: unknown): string[] {
-  if (!Array.isArray(input)) return []
-
-  return input
-    .map((item) => String(item).trim().toLowerCase())
-    .filter((chain): chain is (typeof ALLOWED_CHAINS)[number] =>
-      (ALLOWED_CHAINS as readonly string[]).includes(chain)
-    )
-    .filter((chain, index, arr) => arr.indexOf(chain) === index)
-}
-
 function fallbackReasoning(preset: MandateKey, crossChainAllowed: boolean, minTvlUsd: number, maxBreakEvenDays: number) {
   return [
     `Parsed your request as a ${preset} strategy.`,
@@ -75,8 +64,8 @@ function applyExplicitPromptFloors(payload: ParsedIntentPayload, prompt: string)
   const chainOnly = explicitChains.length > 0 && /\bonly\b/.test(lower)
   const requestsCrossChain = /(cross[- ]?chain|any chain|wherever|best chain|needs? a bridge)/.test(lower)
     || (/\bbridge\b/.test(lower) && !forbidsBridge)
-  const requestsMatureProtocols = /(only top|battle tested|blue[- ]?chip|mature protocol|mature protocols)/.test(lower)
-  const avoidsRewards = /(organic|real yield|no rewards|avoid rewards|avoid incentive|not reward heavy|no reward-heavy)/.test(lower)
+  const requestsMatureProtocols = hasMatureProtocolIntent(prompt)
+  const avoidsRewards = hasRewardAvoidanceIntent(prompt)
   const payloadProtocolTier = Number.isFinite(payload.protocolTierFloor) ? payload.protocolTierFloor : 0
 
   return {
@@ -102,6 +91,9 @@ export function normalizeParsedIntent(
   const heldChains = [...new Set(balances.map((balance) => balance.chainName.toLowerCase()))]
   const explicitBreakEvenDays = parseBreakEvenDays(prompt)
   const explicitApyImprovementPct = parseApyImprovement(prompt)
+  const explicitPreferredChains = detectPreferredChains(prompt)
+  const requestsMatureProtocols = hasMatureProtocolIntent(prompt)
+  const avoidsRewards = hasRewardAvoidanceIntent(prompt)
 
   const sameChainPreferred = typeof adjustedPayload.sameChainPreferred === 'boolean'
     ? adjustedPayload.sameChainPreferred
@@ -109,9 +101,7 @@ export function normalizeParsedIntent(
   const crossChainAllowed = typeof adjustedPayload.crossChainAllowed === 'boolean'
     ? adjustedPayload.crossChainAllowed
     : baseMandate.crossChainAllowed
-  const avoidRewardHeavy = typeof adjustedPayload.avoidRewardHeavy === 'boolean'
-    ? adjustedPayload.avoidRewardHeavy
-    : baseMandate.avoidRewardHeavy
+  const avoidRewardHeavy = avoidsRewards ? true : baseMandate.avoidRewardHeavy
 
   const minTvlUsd = Number.isFinite(adjustedPayload.minTvlUsd) && adjustedPayload.minTvlUsd > 0
     ? clamp(Math.round(adjustedPayload.minTvlUsd), 1_000_000, 10_000_000_000)
@@ -125,13 +115,17 @@ export function normalizeParsedIntent(
   const minApyImprovementPct = explicitApyImprovementPct !== null
     ? clamp(explicitApyImprovementPct, 0.25, 10)
     : baseMandate.minApyImprovementBps / 100
-  const protocolTierFloor = Number.isFinite(adjustedPayload.protocolTierFloor)
-    ? clamp(Math.round(adjustedPayload.protocolTierFloor), 3, 10)
+  const protocolTierFloor = requestsMatureProtocols
+    ? Math.max(
+        Number.isFinite(adjustedPayload.protocolTierFloor)
+          ? clamp(Math.round(adjustedPayload.protocolTierFloor), 3, 10)
+          : baseMandate.protocolTierFloor,
+        8
+      )
     : baseMandate.protocolTierFloor
 
-  const preferredChains = normalizeChains(adjustedPayload.preferredChains)
-  const normalizedPreferredChains = preferredChains.length > 0
-    ? preferredChains
+  const normalizedPreferredChains = explicitPreferredChains.length > 0
+    ? explicitPreferredChains
     : sameChainPreferred
       ? heldChains.filter((chain): chain is (typeof ALLOWED_CHAINS)[number] =>
           (ALLOWED_CHAINS as readonly string[]).includes(chain)
@@ -224,6 +218,14 @@ function parseApyImprovement(input: string): number | null {
   const match = input.match(/(?:uplift|improvement|improve|better|delta).{0,20}?(\d+(?:\.\d+)?)\s*%/i)
     || input.match(/(\d+(?:\.\d+)?)\s*%.{0,20}?(?:uplift|improvement|improve|better|delta)/i)
   return match ? Number(match[1]) : null
+}
+
+function hasMatureProtocolIntent(input: string): boolean {
+  return /(only top|battle tested|blue[- ]?chip|mature protocol|mature protocols)/i.test(input)
+}
+
+function hasRewardAvoidanceIntent(input: string): boolean {
+  return /(organic|real yield|no rewards|avoid rewards|avoid incentive|not reward heavy|no reward-heavy)/i.test(input)
 }
 
 function detectPreferredChains(input: string): string[] {
