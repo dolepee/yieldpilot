@@ -100,6 +100,8 @@ export function normalizeParsedIntent(
   const suggestedPreset = isPresetKey(adjustedPayload.suggestedPreset) ? adjustedPayload.suggestedPreset : 'balanced'
   const baseMandate = MANDATES[suggestedPreset]
   const heldChains = [...new Set(balances.map((balance) => balance.chainName.toLowerCase()))]
+  const explicitBreakEvenDays = parseBreakEvenDays(prompt)
+  const explicitApyImprovementPct = parseApyImprovement(prompt)
 
   const sameChainPreferred = typeof adjustedPayload.sameChainPreferred === 'boolean'
     ? adjustedPayload.sameChainPreferred
@@ -117,11 +119,11 @@ export function normalizeParsedIntent(
   const minVaultApyPct = Number.isFinite(adjustedPayload.minVaultApyPct)
     ? clamp(Number(adjustedPayload.minVaultApyPct), 0, 100)
     : baseMandate.minVaultApyPct ?? 0
-  const maxBreakEvenDays = Number.isFinite(adjustedPayload.maxBreakEvenDays)
-    ? clamp(Math.round(adjustedPayload.maxBreakEvenDays), 3, 45)
+  const maxBreakEvenDays = explicitBreakEvenDays !== null
+    ? clamp(Math.round(explicitBreakEvenDays), 3, 45)
     : baseMandate.maxBreakEvenDays
-  const minApyImprovementPct = Number.isFinite(adjustedPayload.minApyImprovementPct)
-    ? clamp(adjustedPayload.minApyImprovementPct, 0.25, 10)
+  const minApyImprovementPct = explicitApyImprovementPct !== null
+    ? clamp(explicitApyImprovementPct, 0.25, 10)
     : baseMandate.minApyImprovementBps / 100
   const protocolTierFloor = Number.isFinite(adjustedPayload.protocolTierFloor)
     ? clamp(Math.round(adjustedPayload.protocolTierFloor), 3, 10)
