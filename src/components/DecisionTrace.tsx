@@ -20,11 +20,18 @@ function constraintChips(mandate: MandateConfig, preferredChains?: string[]) {
     `TVL >= $${mandate.minTvlUsd >= 1_000_000
       ? `${(mandate.minTvlUsd / 1_000_000).toFixed(0)}M`
       : `${(mandate.minTvlUsd / 1_000).toFixed(0)}K`}`,
+  ]
+
+  if ((mandate.minVaultApyPct ?? 0) > 0) {
+    chips.push(`vault APY >= ${(mandate.minVaultApyPct ?? 0).toFixed(1)}%`)
+  }
+
+  chips.push(
     `break-even <= ${mandate.maxBreakEvenDays}d`,
     `APY uplift >= ${(mandate.minApyImprovementBps / 100).toFixed(1)}%`,
     mandate.avoidRewardHeavy ? 'avoid reward-heavy farms' : 'reward-heavy allowed',
-    mandate.sameChainPreferred ? 'same-chain preferred' : 'best route wins',
-  ]
+    mandate.sameChainPreferred ? 'same-chain preferred' : 'best route wins'
+  )
 
   if (preferredChains && preferredChains.length > 0) {
     chips.push(`preferred: ${preferredChains.join(', ')}`)

@@ -5,6 +5,7 @@ export interface MandateConfig {
   sameChainPreferred: boolean
   crossChainAllowed: boolean
   minTvlUsd: number
+  minVaultApyPct?: number
   minApyImprovementBps: number // basis points, e.g. 150 = 1.5%
   maxBreakEvenDays: number
   avoidRewardHeavy: boolean
@@ -19,6 +20,7 @@ export const MANDATES: Record<string, MandateConfig> = {
     sameChainPreferred: true,
     crossChainAllowed: false,
     minTvlUsd: 100_000_000,
+    minVaultApyPct: 0,
     minApyImprovementBps: 100, // 1.0%
     maxBreakEvenDays: 7,
     avoidRewardHeavy: true,
@@ -31,6 +33,7 @@ export const MANDATES: Record<string, MandateConfig> = {
     sameChainPreferred: true,
     crossChainAllowed: true,
     minTvlUsd: 10_000_000,
+    minVaultApyPct: 0,
     minApyImprovementBps: 150, // 1.5%
     maxBreakEvenDays: 14,
     avoidRewardHeavy: false,
@@ -43,6 +46,7 @@ export const MANDATES: Record<string, MandateConfig> = {
     sameChainPreferred: false,
     crossChainAllowed: true,
     minTvlUsd: 1_000_000,
+    minVaultApyPct: 0,
     minApyImprovementBps: 50, // 0.5%
     maxBreakEvenDays: 30,
     avoidRewardHeavy: false,

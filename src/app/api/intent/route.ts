@@ -53,6 +53,7 @@ async function parseWithOpenAI(
     sameChainPreferred: true,
     avoidRewardHeavy: true,
     minTvlUsd: 100000000,
+    minVaultApyPct: 5,
     maxBreakEvenDays: 7,
     minApyImprovementPct: 1,
     protocolTierFloor: 8,
@@ -84,8 +85,11 @@ async function parseWithOpenAI(
             JSON.stringify(schemaExample),
             'Rules:',
             '- stablecoins only',
+            '- minVaultApyPct is the minimum absolute vault APY requested by the user; "yield above 5%" means minVaultApyPct: 5',
             '- minTvlUsd must be an integer number of USD',
+            '- preserve explicit numeric constraints from the prompt, e.g. "$50M TVL" must become minTvlUsd: 50000000',
             '- maxBreakEvenDays between 3 and 45',
+            '- minApyImprovementPct is only the required APY uplift over idle funds or the current position, not the absolute vault APY',
             '- minApyImprovementPct between 0.25 and 10',
             '- protocolTierFloor between 3 and 10',
             '- preferredChains may include ethereum, base, arbitrum, optimism',
@@ -132,6 +136,7 @@ async function parseWithBankr(
     sameChainPreferred: true,
     avoidRewardHeavy: true,
     minTvlUsd: 100000000,
+    minVaultApyPct: 5,
     maxBreakEvenDays: 7,
     minApyImprovementPct: 1,
     protocolTierFloor: 8,
@@ -164,8 +169,11 @@ async function parseWithBankr(
             JSON.stringify(schemaExample),
             'Rules:',
             '- stablecoins only',
+            '- minVaultApyPct is the minimum absolute vault APY requested by the user; "yield above 5%" means minVaultApyPct: 5',
             '- minTvlUsd must be an integer number of USD',
+            '- preserve explicit numeric constraints from the prompt, e.g. "$50M TVL" must become minTvlUsd: 50000000',
             '- maxBreakEvenDays between 3 and 45',
+            '- minApyImprovementPct is only the required APY uplift over idle funds or the current position, not the absolute vault APY',
             '- minApyImprovementPct between 0.25 and 10',
             '- protocolTierFloor between 3 and 10',
             '- preferredChains may include ethereum, base, arbitrum, optimism',
@@ -208,7 +216,7 @@ export async function POST(request: NextRequest) {
       ?? await parseWithOpenAI(prompt, balances)
 
     if (aiParsed) {
-      const plan = makeIntentPlan(normalizeParsedIntent(aiParsed, balances), prompt, 'ai')
+      const plan = makeIntentPlan(normalizeParsedIntent(aiParsed, balances, prompt), prompt, 'ai')
       return NextResponse.json(plan)
     }
 

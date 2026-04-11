@@ -19,6 +19,7 @@ export interface ParsedIntentPayload {
   sameChainPreferred: boolean
   avoidRewardHeavy: boolean
   minTvlUsd: number
+  minVaultApyPct?: number
   maxBreakEvenDays: number
   minApyImprovementPct: number
   protocolTierFloor: number
@@ -65,38 +66,60 @@ function fallbackReasoning(preset: MandateKey, crossChainAllowed: boolean, minTv
   ]
 }
 
+function applyExplicitPromptFloors(payload: ParsedIntentPayload, prompt: string): ParsedIntentPayload {
+  const explicitTvl = parseMoneyThreshold(prompt)
+  const explicitApy = parseMinApy(prompt)
+  const lower = prompt.toLowerCase()
+  const forbidsBridge = /(same[- ]chain|no bridge|without bridge|do not bridge|don't bridge|stay on|keep it on)/.test(lower)
+  const requestsCrossChain = /(cross[- ]?chain|any chain|wherever|best chain|needs? a bridge)/.test(lower)
+    || (/\bbridge\b/.test(lower) && !forbidsBridge)
+
+  return {
+    ...payload,
+    crossChainAllowed: forbidsBridge ? false : requestsCrossChain ? true : payload.crossChainAllowed,
+    sameChainPreferred: forbidsBridge ? true : requestsCrossChain ? false : payload.sameChainPreferred,
+    minTvlUsd: explicitTvl !== null ? explicitTvl : payload.minTvlUsd,
+    minVaultApyPct: explicitApy !== null ? explicitApy : payload.minVaultApyPct,
+  }
+}
+
 export function normalizeParsedIntent(
   payload: ParsedIntentPayload,
-  balances: IntentBalanceSummary[]
+  balances: IntentBalanceSummary[],
+  prompt = ''
 ): ParsedIntentPayload {
-  const suggestedPreset = isPresetKey(payload.suggestedPreset) ? payload.suggestedPreset : 'balanced'
+  const adjustedPayload = applyExplicitPromptFloors(payload, prompt)
+  const suggestedPreset = isPresetKey(adjustedPayload.suggestedPreset) ? adjustedPayload.suggestedPreset : 'balanced'
   const baseMandate = MANDATES[suggestedPreset]
   const heldChains = [...new Set(balances.map((balance) => balance.chainName.toLowerCase()))]
 
-  const sameChainPreferred = typeof payload.sameChainPreferred === 'boolean'
-    ? payload.sameChainPreferred
+  const sameChainPreferred = typeof adjustedPayload.sameChainPreferred === 'boolean'
+    ? adjustedPayload.sameChainPreferred
     : baseMandate.sameChainPreferred
-  const crossChainAllowed = typeof payload.crossChainAllowed === 'boolean'
-    ? payload.crossChainAllowed
+  const crossChainAllowed = typeof adjustedPayload.crossChainAllowed === 'boolean'
+    ? adjustedPayload.crossChainAllowed
     : baseMandate.crossChainAllowed
-  const avoidRewardHeavy = typeof payload.avoidRewardHeavy === 'boolean'
-    ? payload.avoidRewardHeavy
+  const avoidRewardHeavy = typeof adjustedPayload.avoidRewardHeavy === 'boolean'
+    ? adjustedPayload.avoidRewardHeavy
     : baseMandate.avoidRewardHeavy
 
-  const minTvlUsd = Number.isFinite(payload.minTvlUsd) && payload.minTvlUsd > 0
-    ? clamp(Math.round(payload.minTvlUsd), 1_000_000, 10_000_000_000)
+  const minTvlUsd = Number.isFinite(adjustedPayload.minTvlUsd) && adjustedPayload.minTvlUsd > 0
+    ? clamp(Math.round(adjustedPayload.minTvlUsd), 1_000_000, 10_000_000_000)
     : baseMandate.minTvlUsd
-  const maxBreakEvenDays = Number.isFinite(payload.maxBreakEvenDays)
-    ? clamp(Math.round(payload.maxBreakEvenDays), 3, 45)
+  const minVaultApyPct = Number.isFinite(adjustedPayload.minVaultApyPct)
+    ? clamp(Number(adjustedPayload.minVaultApyPct), 0, 100)
+    : baseMandate.minVaultApyPct ?? 0
+  const maxBreakEvenDays = Number.isFinite(adjustedPayload.maxBreakEvenDays)
+    ? clamp(Math.round(adjustedPayload.maxBreakEvenDays), 3, 45)
     : baseMandate.maxBreakEvenDays
-  const minApyImprovementPct = Number.isFinite(payload.minApyImprovementPct)
-    ? clamp(payload.minApyImprovementPct, 0.25, 10)
+  const minApyImprovementPct = Number.isFinite(adjustedPayload.minApyImprovementPct)
+    ? clamp(adjustedPayload.minApyImprovementPct, 0.25, 10)
     : baseMandate.minApyImprovementBps / 100
-  const protocolTierFloor = Number.isFinite(payload.protocolTierFloor)
-    ? clamp(Math.round(payload.protocolTierFloor), 3, 10)
+  const protocolTierFloor = Number.isFinite(adjustedPayload.protocolTierFloor)
+    ? clamp(Math.round(adjustedPayload.protocolTierFloor), 3, 10)
     : baseMandate.protocolTierFloor
 
-  const preferredChains = normalizeChains(payload.preferredChains)
+  const preferredChains = normalizeChains(adjustedPayload.preferredChains)
   const normalizedPreferredChains = preferredChains.length > 0
     ? preferredChains
     : sameChainPreferred
@@ -105,21 +128,22 @@ export function normalizeParsedIntent(
         )
       : []
 
-  const reasoning = Array.isArray(payload.reasoning)
-    ? payload.reasoning
+  const reasoning = Array.isArray(adjustedPayload.reasoning)
+    ? adjustedPayload.reasoning
       .map((item) => String(item).trim())
       .filter(Boolean)
       .slice(0, 4)
     : []
 
   return {
-    strategyName: String(payload.strategyName || '').trim() || baseMandate.name,
-    summary: String(payload.summary || '').trim() || baseMandate.description,
+    strategyName: String(adjustedPayload.strategyName || '').trim() || baseMandate.name,
+    summary: String(adjustedPayload.summary || '').trim() || baseMandate.description,
     suggestedPreset,
     crossChainAllowed: sameChainPreferred ? false : crossChainAllowed,
     sameChainPreferred,
     avoidRewardHeavy,
     minTvlUsd,
+    minVaultApyPct,
     maxBreakEvenDays,
     minApyImprovementPct,
     protocolTierFloor,
@@ -150,6 +174,7 @@ export function makeIntentPlan(
       sameChainPreferred: payload.sameChainPreferred,
       crossChainAllowed: payload.crossChainAllowed,
       minTvlUsd: payload.minTvlUsd,
+      minVaultApyPct: payload.minVaultApyPct,
       minApyImprovementBps: Math.round(payload.minApyImprovementPct * 100),
       maxBreakEvenDays: payload.maxBreakEvenDays,
       avoidRewardHeavy: payload.avoidRewardHeavy,
@@ -185,6 +210,12 @@ function parseMinApy(input: string): number | null {
   return match ? Number(match[1]) : null
 }
 
+function parseApyImprovement(input: string): number | null {
+  const match = input.match(/(?:uplift|improvement|improve|better|delta).{0,20}?(\d+(?:\.\d+)?)\s*%/i)
+    || input.match(/(\d+(?:\.\d+)?)\s*%.{0,20}?(?:uplift|improvement|improve|better|delta)/i)
+  return match ? Number(match[1]) : null
+}
+
 function detectPreferredChains(input: string): string[] {
   const lower = input.toLowerCase()
   return ALLOWED_CHAINS.filter(chain => lower.includes(chain))
@@ -214,6 +245,8 @@ export function fallbackParseIntent(prompt: string, balances: IntentBalanceSumma
 
   const sameChainPreferred = forbidsBridge
     ? true
+    : requestsCrossChain
+      ? false
     : baseMandate.sameChainPreferred
 
   const avoidRewardHeavy = /(organic|real yield|no rewards|avoid rewards|avoid incentive|not reward heavy)/.test(lower)
@@ -221,8 +254,9 @@ export function fallbackParseIntent(prompt: string, balances: IntentBalanceSumma
     : baseMandate.avoidRewardHeavy
 
   const minTvlUsd = parseMoneyThreshold(text) ?? baseMandate.minTvlUsd
+  const minVaultApyPct = parseMinApy(text) ?? baseMandate.minVaultApyPct ?? 0
   const maxBreakEvenDays = parseBreakEvenDays(text) ?? baseMandate.maxBreakEvenDays
-  const minApyImprovementPct = parseMinApy(text) ?? baseMandate.minApyImprovementBps / 100
+  const minApyImprovementPct = parseApyImprovement(text) ?? baseMandate.minApyImprovementBps / 100
   const preferredChains = detectPreferredChains(text)
   const protocolTierFloor = /(only top|battle tested|blue chip|mature protocol)/.test(lower)
     ? Math.max(baseMandate.protocolTierFloor, 8)
@@ -259,13 +293,15 @@ export function fallbackParseIntent(prompt: string, balances: IntentBalanceSumma
         sameChainPreferred,
         avoidRewardHeavy,
         minTvlUsd,
+        minVaultApyPct,
         maxBreakEvenDays,
         minApyImprovementPct,
         protocolTierFloor,
         preferredChains,
         reasoning: fallbackReasoning(preset, crossChainAllowed, minTvlUsd, maxBreakEvenDays),
       },
-      balances
+      balances,
+      prompt
     ),
     prompt,
     'fallback'

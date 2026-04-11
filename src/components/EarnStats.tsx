@@ -1,16 +1,15 @@
 'use client'
 
-import type { EarnChain, EarnProtocol, Vault } from '@/lib/earn-api'
+import type { EarnChain, Vault } from '@/lib/earn-api'
 
 interface EarnStatsProps {
   vaults: Vault[]
   chains: EarnChain[]
-  protocols: EarnProtocol[]
   isLoading: boolean
   error: string | null
 }
 
-export function EarnStats({ vaults, chains, protocols, isLoading, error }: EarnStatsProps) {
+export function EarnStats({ vaults, chains, isLoading, error }: EarnStatsProps) {
 
   if (isLoading) {
     return (

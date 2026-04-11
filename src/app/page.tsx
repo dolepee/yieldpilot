@@ -339,7 +339,6 @@ export default function Home() {
         <EarnStats
           vaults={earnData.vaults}
           chains={earnData.chains}
-          protocols={earnData.protocols}
           isLoading={earnData.isLoading}
           error={earnData.error}
         />

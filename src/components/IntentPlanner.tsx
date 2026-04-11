@@ -104,13 +104,21 @@ export function IntentPlanner({
 
             <p className="text-sm text-gray-300">{plan.summary}</p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="rounded-xl bg-white/[0.02] p-3">
                 <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1">TVL floor</p>
                 <p className="text-sm font-medium text-white">
                   ${plan.mandate.minTvlUsd >= 1_000_000
                     ? `${(plan.mandate.minTvlUsd / 1_000_000).toFixed(0)}M`
                     : `${(plan.mandate.minTvlUsd / 1_000).toFixed(0)}K`}
+                </p>
+              </div>
+              <div className="rounded-xl bg-white/[0.02] p-3">
+                <p className="text-[11px] uppercase tracking-wide text-gray-500 mb-1">Min vault APY</p>
+                <p className="text-sm font-medium text-white">
+                  {(plan.mandate.minVaultApyPct ?? 0) > 0
+                    ? `${(plan.mandate.minVaultApyPct ?? 0).toFixed(2)}%`
+                    : 'Any'}
                 </p>
               </div>
               <div className="rounded-xl bg-white/[0.02] p-3">

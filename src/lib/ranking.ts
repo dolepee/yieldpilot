@@ -25,6 +25,13 @@ export interface RecommendationResult {
   candidatesFiltered: number
 }
 
+function formatUsdCompact(value: number): string {
+  if (value >= 1_000_000_000) return `$${(value / 1_000_000_000).toFixed(value % 1_000_000_000 === 0 ? 0 : 1)}B`
+  if (value >= 1_000_000) return `$${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M`
+  if (value >= 1_000) return `$${(value / 1_000).toFixed(value % 1_000 === 0 ? 0 : 1)}K`
+  return `$${value.toFixed(0)}`
+}
+
 // Filter vaults by mandate constraints
 function filterByMandate(
   vaults: Vault[],
@@ -50,6 +57,12 @@ function filterByMandate(
     const tvl = Number(vault.analytics.tvl.usd)
     if (tvl < mandate.minTvlUsd) return false
 
+    // Absolute vault APY floor from the user's intent (e.g. "above 5% yield").
+    const vaultApy = Number(vault.analytics.apy.total)
+    if ((mandate.minVaultApyPct ?? 0) > 0 && (!Number.isFinite(vaultApy) || vaultApy < (mandate.minVaultApyPct ?? 0))) {
+      return false
+    }
+
     // Protocol maturity
     const tier = PROTOCOL_TIERS[vault.protocol.name] ?? 3
     if (tier < mandate.protocolTierFloor) return false
@@ -72,7 +85,8 @@ function filterByMandate(
 
   if (passed.length === 0) {
     if (!mandate.crossChainAllowed) reasons.push('No same-chain vaults meet your mandate. Cross-chain is not allowed under this mandate.')
-    if (mandate.minTvlUsd >= 100_000_000) reasons.push(`No vaults with TVL above $${(mandate.minTvlUsd / 1_000_000).toFixed(0)}M match your criteria.`)
+    if (mandate.minTvlUsd >= 1_000_000) reasons.push(`No vaults with TVL above ${formatUsdCompact(mandate.minTvlUsd)} match your criteria.`)
+    if ((mandate.minVaultApyPct ?? 0) > 0) reasons.push(`No vaults above ${(mandate.minVaultApyPct ?? 0).toFixed(2)}% APY match your criteria.`)
     if (mandate.protocolTierFloor >= 8) reasons.push('Only top-tier protocols allowed. No compliant vaults found.')
     if (reasons.length === 0) reasons.push('No vaults satisfy all mandate constraints.')
   }

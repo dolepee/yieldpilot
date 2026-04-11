@@ -51,7 +51,7 @@ export function RecommendationCard({ result, mandateName, onExecute, isLoadingQu
     return <RefusalCard result={result} mandateName={mandateName} />
   }
 
-  const { vault, score, reasons, matchedBalance, apyDelta } = result.top
+  const { vault, score, reasons, matchedBalance } = result.top
   const tvl = Number(vault.analytics.tvl.usd)
   const chainMeta = CHAIN_META[vault.chainId]
   const isSameChain = matchedBalance.chainId === vault.chainId
