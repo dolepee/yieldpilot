@@ -1,6 +1,7 @@
 'use client'
 
 import type { RecommendationResult, ScoredVault } from '@/lib/ranking'
+import { CHAIN_META } from '@/lib/constants'
 
 interface RecommendationCardProps {
   result: RecommendationResult
@@ -59,6 +60,7 @@ function CandidateOption({
   onSelect: () => void
 }) {
   const tvl = Number(candidate.vault.analytics.tvl.usd)
+  const chainMeta = CHAIN_META[candidate.vault.chainId]
 
   return (
     <button
@@ -74,7 +76,10 @@ function CandidateOption({
         <div>
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-white">{candidate.vault.name}</span>
-            <span className="h-2 w-2 rounded-full bg-[#00d4aa]" />
+            <span
+              className="h-2 w-2 rounded-full shadow-[0_0_14px_currentColor]"
+              style={{ backgroundColor: chainMeta?.color ?? '#00d4aa', color: chainMeta?.color ?? '#00d4aa' }}
+            />
             <span className="text-xs text-white/40">{candidate.vault.network}</span>
           </div>
           <p className="mt-1 text-xs text-white/40">
@@ -106,6 +111,7 @@ export function RecommendationCard({
 
   const { vault, score, reasons, matchedBalance } = selectedCandidate
   const tvl = Number(vault.analytics.tvl.usd)
+  const chainMeta = CHAIN_META[vault.chainId]
   const isSameChain = matchedBalance.chainId === vault.chainId
   const maxAmount = matchedBalance.usdValue
   const amountValue = Number(depositAmount || '0')
@@ -146,7 +152,14 @@ export function RecommendationCard({
         <div className="flex items-center justify-between">
           <span className="text-sm text-white/40">Chain</span>
           <div className="flex items-center gap-2">
-            <div className="h-4 w-4 rounded-full border border-[#00d4aa]/30 bg-[#00d4aa]/20" />
+            <div
+              className="h-4 w-4 rounded-full border shadow-[0_0_18px_currentColor]"
+              style={{
+                borderColor: `${chainMeta?.color ?? '#00d4aa'}66`,
+                backgroundColor: `${chainMeta?.color ?? '#00d4aa'}33`,
+                color: chainMeta?.color ?? '#00d4aa',
+              }}
+            />
             <span className="text-sm font-medium text-white">{vault.network}</span>
             {isSameChain && (
               <span className="text-xs px-1.5 py-0.5 rounded bg-[#00d4aa]/10 text-[#00d4aa]">same-chain</span>

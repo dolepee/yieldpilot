@@ -23,9 +23,76 @@ import type { ComposerQuote } from '@/lib/composer'
 import { useLifiStatus } from '@/hooks/useLifiStatus'
 import { ERC20_ALLOWANCE_ABI, TARGET_CHAINS } from '@/lib/constants'
 import type { IntentPlan } from '@/lib/intent'
+import { BrainCircuit, Database, Route, ShieldCheck, Sparkles } from 'lucide-react'
 
 function candidateKey(candidate: ScoredVault): string {
   return `${candidate.vault.slug}-${candidate.matchedBalance.chainId}-${candidate.matchedBalance.token}`
+}
+
+function HeroSection() {
+  return (
+    <section className="premium-surface rounded-[2rem] px-5 py-8 sm:px-8 lg:px-10 lg:py-11">
+      <div className="grid-fade pointer-events-none absolute inset-0" />
+      <div className="relative grid gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <div>
+          <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-[#00d4aa]/25 bg-[#00d4aa]/10 px-3 py-1.5 text-xs font-medium text-[#baffef]">
+            <Sparkles size={14} strokeWidth={1.8} />
+            <span>AI mandate compiler for LI.FI Earn</span>
+          </div>
+          <h1 className="max-w-3xl text-5xl font-semibold tracking-[-0.06em] text-white sm:text-7xl">
+            Define your yield mandate.
+          </h1>
+          <p className="mt-6 max-w-2xl text-base leading-7 text-white/60 sm:text-lg">
+            Translate plain-English stablecoin rules into deterministic vault filters, route economics, and execution constraints before capital moves.
+          </p>
+
+          <div className="mt-8 grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
+            {[
+              { label: 'Intent', value: 'Bankr LLM', Icon: BrainCircuit, color: 'text-violet-200 border-violet-400/20 bg-violet-400/10' },
+              { label: 'Routing', value: 'Composer', Icon: Route, color: 'text-cyan-200 border-cyan-400/20 bg-cyan-400/10' },
+              { label: 'Policy', value: 'No blind moves', Icon: ShieldCheck, color: 'text-emerald-200 border-emerald-400/20 bg-emerald-400/10' },
+            ].map(({ label, value, Icon, color }) => (
+              <div key={label} className={`rounded-2xl border px-4 py-4 ${color}`}>
+                <Icon size={18} strokeWidth={1.7} />
+                <p className="mt-4 text-[11px] uppercase tracking-[0.18em] opacity-60">{label}</p>
+                <p className="mt-1 font-mono text-sm font-semibold">{value}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-[1.5rem] border border-white/10 bg-black/45 p-4 shadow-2xl shadow-black/40">
+          <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
+            <div className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#fb7185]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#f59e0b]" />
+              <span className="h-2.5 w-2.5 rounded-full bg-[#00d4aa]" />
+            </div>
+            <span className="font-mono text-xs text-white/35">yieldpilot.exec</span>
+          </div>
+          <div className="space-y-3 font-mono text-sm">
+            {[
+              ['market.index', '623 vaults', 'text-cyan-200'],
+              ['risk.policy', 'deterministic', 'text-violet-200'],
+              ['route.quote', 'Composer ready', 'text-emerald-200'],
+              ['capital.guard', 'break-even enforced', 'text-amber-200'],
+            ].map(([label, value, color]) => (
+              <div key={label} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                <span className="text-white/40">{label}</span>
+                <span className={color}>{value}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 rounded-xl border border-[#00d4aa]/20 bg-[#00d4aa]/10 px-4 py-3">
+            <div className="flex items-center gap-3">
+              <Database size={17} strokeWidth={1.7} className="text-[#00d4aa]" />
+              <p className="text-sm text-[#baffef]">Only execute when constraints and route economics pass.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
 }
 
 export default function Home() {
@@ -410,16 +477,8 @@ export default function Home() {
   return (
     <>
       <Header />
-      <main className="mx-auto w-full max-w-6xl flex-1 space-y-12 px-4 py-12 sm:px-6 lg:py-16">
-        {/* Hero */}
-        <div className="mx-auto max-w-3xl text-center">
-          <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-6xl">
-            Define Your Yield Mandate.
-          </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-white/50">
-            AI translates plain-English strategy into deterministic vault filters, route economics, and execution constraints before capital moves.
-          </p>
-        </div>
+      <main className="mx-auto w-full max-w-7xl flex-1 space-y-12 px-4 py-10 sm:px-6 lg:py-14">
+        <HeroSection />
 
         {/* Earn Data Stats */}
         <EarnStats
@@ -447,15 +506,38 @@ export default function Home() {
               </div>
             )}
 
-            {/* Screen 1: Wallet Snapshot */}
-            <WalletSnapshot
-              balances={activeBalances}
-              totalUsd={activeTotalUsd}
-              isLoading={!isDemoMode && balanceData.isLoading}
-              error={isDemoMode ? null : balanceData.error}
-              isDemoMode={isDemoMode}
-              onDemoMode={() => setIsDemoMode(true)}
-            />
+            <div className="grid gap-6 xl:grid-cols-[0.82fr_1.18fr] xl:items-start">
+              <aside className="space-y-6 xl:sticky xl:top-28">
+                {/* Screen 1: Wallet Snapshot */}
+                <WalletSnapshot
+                  balances={activeBalances}
+                  totalUsd={activeTotalUsd}
+                  isLoading={!isDemoMode && balanceData.isLoading}
+                  error={isDemoMode ? null : balanceData.error}
+                  isDemoMode={isDemoMode}
+                  onDemoMode={() => setIsDemoMode(true)}
+                />
+
+                <div className="card overflow-hidden border-cyan-400/15">
+                  <div className="border-b border-white/10 bg-cyan-400/10 px-5 py-4">
+                    <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Execution Guard</p>
+                  </div>
+                  <div className="space-y-3 p-5">
+                    {[
+                      ['Wallet scan', isBalanceReady ? 'ready' : 'pending', 'text-cyan-200'],
+                      ['Stablecoin positions', `${activeBalances.length}`, 'text-violet-200'],
+                      ['Execution mode', isDemoMode ? 'demo' : 'wallet', 'text-emerald-200'],
+                    ].map(([label, value, color]) => (
+                      <div key={label} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3">
+                        <span className="text-xs text-white/40">{label}</span>
+                        <span className={`font-mono text-xs ${color}`}>{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </aside>
+
+              <section className="space-y-6">
 
             {/* Screen 2: AI Intent Planner */}
             {isBalanceReady && (activeBalances.length > 0 || isDemoMode) && (
@@ -590,6 +672,8 @@ export default function Home() {
                 </div>
               </div>
             )}
+              </section>
+            </div>
           </>
         ) : (
           <div className="card p-10 text-center">

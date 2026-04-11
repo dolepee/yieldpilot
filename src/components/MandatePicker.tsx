@@ -9,6 +9,30 @@ const ICONS = {
   aggressive: Zap,
 }
 
+const CARD_STYLES: Record<MandateKey, { border: string; bg: string; text: string; hoverText: string; shadow: string }> = {
+  conservative: {
+    border: 'border-emerald-400/25 hover:border-emerald-300/55',
+    bg: 'bg-emerald-400/[0.045]',
+    text: 'text-emerald-200',
+    hoverText: 'group-hover:text-emerald-200',
+    shadow: 'shadow-[0_0_40px_rgba(52,211,153,0.1)]',
+  },
+  balanced: {
+    border: 'border-cyan-400/25 hover:border-cyan-300/55',
+    bg: 'bg-cyan-400/[0.045]',
+    text: 'text-cyan-200',
+    hoverText: 'group-hover:text-cyan-200',
+    shadow: 'shadow-[0_0_40px_rgba(34,211,238,0.1)]',
+  },
+  aggressive: {
+    border: 'border-violet-400/25 hover:border-violet-300/55',
+    bg: 'bg-violet-400/[0.045]',
+    text: 'text-violet-200',
+    hoverText: 'group-hover:text-violet-200',
+    shadow: 'shadow-[0_0_40px_rgba(139,92,246,0.11)]',
+  },
+}
+
 const STRATEGY_ROWS: Record<MandateKey, { label: string; value: string }[]> = {
   conservative: [
     { label: 'Liquidity Depth', value: '> $100M' },
@@ -46,24 +70,25 @@ export function MandatePicker({ selected, onSelect }: MandatePickerProps) {
         {(Object.entries(MANDATES) as [MandateKey, typeof MANDATES[MandateKey]][]).map(([key, mandate]) => {
           const isSelected = selected === key
           const IconComp = ICONS[key]
+          const style = CARD_STYLES[key]
 
           return (
             <button
               key={key}
               onClick={() => onSelect(key)}
               aria-pressed={isSelected}
-              className={`group rounded-md border p-5 text-left transition-all duration-200 hover:-translate-y-0.5 ${
+              className={`group rounded-2xl border p-5 text-left transition-all duration-200 hover:-translate-y-1 ${
                 isSelected
-                  ? 'border-[#00d4aa]/50 bg-[#121212] shadow-[0_0_32px_rgba(0,212,170,0.08)]'
-                  : 'border-white/10 bg-[#121212] hover:border-[#00d4aa]/40'
+                  ? `${style.border} ${style.bg} ${style.shadow}`
+                  : `border-white/10 bg-[#121212] ${style.border}`
               }`}
             >
               <div className="mb-6 flex items-center justify-between gap-3">
-                <div className={isSelected ? 'text-[#00d4aa]' : 'text-white/45 group-hover:text-[#00d4aa]'}>
+                <div className={isSelected ? style.text : `text-white/45 ${style.hoverText}`}>
                   <IconComp size={21} strokeWidth={1.7} />
                 </div>
                 {isSelected && (
-                  <span className="rounded-full border border-[#00d4aa]/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#00d4aa]">
+                  <span className={`rounded-full border border-white/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${style.text}`}>
                     Active
                   </span>
                 )}
@@ -75,7 +100,7 @@ export function MandatePicker({ selected, onSelect }: MandatePickerProps) {
                 {STRATEGY_ROWS[key].map((row) => (
                   <div key={row.label} className="flex items-center justify-between gap-3 border-t border-white/10 pt-3 first:border-t-0 first:pt-0">
                     <div className="flex items-center gap-2">
-                      <Check size={13} strokeWidth={1.8} className="text-[#00d4aa]" />
+                      <Check size={13} strokeWidth={1.8} className={style.text} />
                       <span className="text-xs text-white/45">{row.label}</span>
                     </div>
                     <span className="font-mono text-xs text-white">{row.value}</span>

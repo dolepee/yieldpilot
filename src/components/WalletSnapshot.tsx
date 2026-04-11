@@ -9,7 +9,14 @@ function ChainBalanceRow({ balance }: { balance: TokenBalance }) {
   return (
     <div className="grid grid-cols-[1fr_auto] items-center gap-4 border-t border-white/10 py-4 first:border-t-0 md:grid-cols-[1.4fr_1fr_auto]">
       <div className="flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#1a1a1a] text-[#00d4aa]">
+        <div
+          className="flex h-9 w-9 items-center justify-center rounded-full border text-white shadow-lg"
+          style={{
+            borderColor: `${meta?.color ?? '#00d4aa'}55`,
+            backgroundColor: `${meta?.color ?? '#00d4aa'}22`,
+            boxShadow: `0 0 24px ${meta?.color ?? '#00d4aa'}22`,
+          }}
+        >
           <CircleDollarSign size={17} strokeWidth={1.7} />
         </div>
         <div>
