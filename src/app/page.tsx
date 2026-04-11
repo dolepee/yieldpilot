@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo, useCallback, useEffect } from 'react'
-import { useAccount, useSendTransaction, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
+import { useAccount, useChainId, useSendTransaction, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from 'wagmi'
 import { parseUnits, createPublicClient, http } from 'viem'
 import { Header } from '@/components/Header'
 import { WalletSnapshot } from '@/components/WalletSnapshot'
@@ -26,6 +26,7 @@ import type { IntentPlan } from '@/lib/intent'
 
 export default function Home() {
   const { address, isConnected } = useAccount()
+  const currentChainId = useChainId()
   const earnData = useEarnData()
   const balanceData = useStablecoinBalances(address)
 
@@ -49,6 +50,7 @@ export default function Home() {
 
   const { sendTransactionAsync, isPending: isSending } = useSendTransaction()
   const { writeContractAsync, isPending: isApproving } = useWriteContract()
+  const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain()
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: activeRouteHash })
   const { isLoading: isApprovalConfirming, isSuccess: isApprovalConfirmed } = useWaitForTransactionReceipt({ hash: activeApprovalHash })
 
@@ -85,6 +87,9 @@ export default function Home() {
 
     try {
       setExecutionError(null)
+      if (currentChainId !== tx.chainId) {
+        await switchChainAsync({ chainId: tx.chainId })
+      }
       const hash = await sendTransactionAsync({
         to: tx.to as `0x${string}`,
         data: tx.data as `0x${string}`,
@@ -96,7 +101,7 @@ export default function Home() {
     } catch (e) {
       setExecutionError(e instanceof Error ? e.message : 'Failed to submit route transaction')
     }
-  }, [composerQuote, sendTransactionAsync])
+  }, [composerQuote, currentChainId, sendTransactionAsync, switchChainAsync])
 
   useEffect(() => {
     if (!pendingRouteAfterApproval || !isApprovalConfirmed) return
@@ -247,6 +252,10 @@ export default function Home() {
       setApprovalRequired(true)
       setPendingRouteAfterApproval(true)
 
+      if (currentChainId !== fromChainId) {
+        await switchChainAsync({ chainId: fromChainId })
+      }
+
       const approvalHash = await writeContractAsync({
         address: fromToken,
         abi: ERC20_ALLOWANCE_ABI,
@@ -261,10 +270,11 @@ export default function Home() {
     } finally {
       setIsCheckingAllowance(false)
     }
-  }, [address, composerQuote, executeRouteTransaction, writeContractAsync])
+  }, [address, composerQuote, currentChainId, executeRouteTransaction, switchChainAsync, writeContractAsync])
 
   const handleMandateSelect = (key: MandateKey) => {
     setSelectedMandate(key)
+    setStrategyPrompt('')
     setIntentPlan(null)
     setIntentError(null)
     setWorthItAnalysis(null)
@@ -296,10 +306,12 @@ export default function Home() {
   const showExecutionTracker = !!activeRouteHash && worthItAnalysis?.verdict === 'approved' && !(
     lifiStatus === 'DONE' && activeRouteHash && worthItAnalysis && recommendation?.top && activeMandate
   )
-  const isBusy = isCheckingAllowance || isApproving || isApprovalConfirming || isSending || isConfirming
+  const isBusy = isCheckingAllowance || isSwitchingChain || isApproving || isApprovalConfirming || isSending || isConfirming
   const executeButtonLabel = isCheckingAllowance
     ? 'Checking allowance...'
-    : isApproving
+    : isSwitchingChain
+      ? 'Switching chain...'
+      : isApproving
       ? 'Confirm approval...'
       : isApprovalConfirming
         ? 'Waiting for approval...'

@@ -66,14 +66,22 @@ export function MandatePicker({ selected, onSelect }: MandatePickerProps) {
             <button
               key={key}
               onClick={() => onSelect(key)}
+              aria-pressed={isSelected}
               className={`p-4 rounded-xl border-2 text-left transition-all ${
                 isSelected
-                  ? `${colors.border} ${colors.bg} ring-1 ring-white/10`
+                  ? `${colors.border} ${colors.bg} ring-2 ring-white/20 shadow-lg`
                   : 'border-white/5 hover:border-white/10'
               }`}
             >
-              <div className={`mb-3 ${isSelected ? colors.text : 'text-gray-500'}`}>
-                {IconComp && <IconComp />}
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div className={isSelected ? colors.text : 'text-gray-500'}>
+                  {IconComp && <IconComp />}
+                </div>
+                {isSelected && (
+                  <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${colors.border} ${colors.text}`}>
+                    Active
+                  </span>
+                )}
               </div>
               <p className={`font-semibold mb-1 ${isSelected ? 'text-white' : 'text-gray-300'}`}>
                 {mandate.name}
