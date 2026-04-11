@@ -79,9 +79,7 @@ export function IntentPlanner({
           >
             {isLoading ? 'Parsing strategy...' : 'Generate AI mandate'}
           </button>
-          <p className="text-xs text-gray-600">
-            If no model is configured, YieldPilot falls back to a deterministic parser.
-          </p>
+          <p className="text-xs text-gray-600">Powered by Bankr LLM; final ranking stays deterministic.</p>
         </div>
 
         {error && (
