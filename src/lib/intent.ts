@@ -70,16 +70,24 @@ function applyExplicitPromptFloors(payload: ParsedIntentPayload, prompt: string)
   const explicitTvl = parseMoneyThreshold(prompt)
   const explicitApy = parseMinApy(prompt)
   const lower = prompt.toLowerCase()
+  const explicitChains = detectPreferredChains(prompt)
   const forbidsBridge = /(same[- ]chain|no bridge|without bridge|do not bridge|don't bridge|stay on|keep it on)/.test(lower)
+  const chainOnly = explicitChains.length > 0 && /\bonly\b/.test(lower)
   const requestsCrossChain = /(cross[- ]?chain|any chain|wherever|best chain|needs? a bridge)/.test(lower)
     || (/\bbridge\b/.test(lower) && !forbidsBridge)
+  const requestsMatureProtocols = /(only top|battle tested|blue[- ]?chip|mature protocol|mature protocols)/.test(lower)
+  const avoidsRewards = /(organic|real yield|no rewards|avoid rewards|avoid incentive|not reward heavy|no reward-heavy)/.test(lower)
+  const payloadProtocolTier = Number.isFinite(payload.protocolTierFloor) ? payload.protocolTierFloor : 0
 
   return {
     ...payload,
-    crossChainAllowed: forbidsBridge ? false : requestsCrossChain ? true : payload.crossChainAllowed,
-    sameChainPreferred: forbidsBridge ? true : requestsCrossChain ? false : payload.sameChainPreferred,
+    avoidRewardHeavy: avoidsRewards ? true : payload.avoidRewardHeavy,
+    crossChainAllowed: forbidsBridge || chainOnly ? false : requestsCrossChain ? true : payload.crossChainAllowed,
+    sameChainPreferred: forbidsBridge || chainOnly ? true : requestsCrossChain ? false : payload.sameChainPreferred,
     minTvlUsd: explicitTvl !== null ? explicitTvl : payload.minTvlUsd,
     minVaultApyPct: explicitApy !== null ? explicitApy : payload.minVaultApyPct,
+    protocolTierFloor: requestsMatureProtocols ? Math.max(payloadProtocolTier, 8) : payload.protocolTierFloor,
+    preferredChains: explicitChains.length > 0 ? explicitChains : payload.preferredChains,
   }
 }
 
