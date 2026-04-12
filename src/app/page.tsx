@@ -14,16 +14,18 @@ import { WorthItCard } from '@/components/WorthItCard'
 import { YieldStoryCard } from '@/components/YieldStoryCard'
 import { ExecutionTracker } from '@/components/ExecutionTracker'
 import { ScenarioSimulator } from '@/components/ScenarioSimulator'
+import { VaultPositionsPanel } from '@/components/VaultPositionsPanel'
 import { useEarnData } from '@/hooks/useEarnData'
 import { useStablecoinBalances, type TokenBalance } from '@/hooks/useStablecoinBalances'
 import { usePortfolioVerification } from '@/hooks/usePortfolioVerification'
+import { useVaultPositions, type VaultPosition } from '@/hooks/useVaultPositions'
 import { MANDATES, type MandateConfig, type MandateKey } from '@/lib/mandates'
 import { recommend, type RecommendationResult, type ScoredVault } from '@/lib/ranking'
 import { analyzeWorthIt, type WorthItAnalysis } from '@/lib/worth-it'
 import { DEMO_BALANCES } from '@/lib/demo'
 import type { ComposerQuote } from '@/lib/composer'
 import { useLifiStatus } from '@/hooks/useLifiStatus'
-import { ERC20_ALLOWANCE_ABI, TARGET_CHAINS } from '@/lib/constants'
+import { ERC20_ALLOWANCE_ABI, ERC4626_VAULT_ABI, TARGET_CHAINS } from '@/lib/constants'
 import type { IntentPlan } from '@/lib/intent'
 import { BrainCircuit, Database, Route, ShieldCheck, Sparkles } from 'lucide-react'
 
@@ -102,6 +104,7 @@ export default function Home() {
   const currentChainId = useChainId()
   const earnData = useEarnData()
   const balanceData = useStablecoinBalances(address)
+  const vaultPositions = useVaultPositions(address, earnData.vaults)
 
   const [selectedMandate, setSelectedMandate] = useState<MandateKey | null>(null)
   const [strategyPrompt, setStrategyPrompt] = useState('')
@@ -122,12 +125,16 @@ export default function Home() {
   const [activeApprovalHash, setActiveApprovalHash] = useState<`0x${string}` | undefined>()
   const [selectedCandidateKey, setSelectedCandidateKey] = useState<string | null>(null)
   const [depositAmount, setDepositAmount] = useState('')
+  const [activeWithdrawHash, setActiveWithdrawHash] = useState<`0x${string}` | undefined>()
+  const [activeWithdrawPosition, setActiveWithdrawPosition] = useState<VaultPosition | null>(null)
+  const [withdrawError, setWithdrawError] = useState<string | null>(null)
 
   const { sendTransactionAsync, isPending: isSending } = useSendTransaction()
   const { writeContractAsync, isPending: isApproving } = useWriteContract()
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain()
   const { isLoading: isConfirming } = useWaitForTransactionReceipt({ hash: activeRouteHash })
   const { isLoading: isApprovalConfirming, isSuccess: isApprovalConfirmed } = useWaitForTransactionReceipt({ hash: activeApprovalHash })
+  const { isLoading: isWithdrawConfirming, isSuccess: isWithdrawConfirmed } = useWaitForTransactionReceipt({ hash: activeWithdrawHash })
 
   // Use demo balances if in demo mode, otherwise real balances
   const activeBalances: TokenBalance[] = isDemoMode ? DEMO_BALANCES : balanceData.balances
@@ -208,6 +215,12 @@ export default function Home() {
     setPendingRouteAfterApproval(false)
     void executeRouteTransaction()
   }, [pendingRouteAfterApproval, isApprovalConfirmed, executeRouteTransaction])
+
+  useEffect(() => {
+    if (!isWithdrawConfirmed) return
+    balanceData.refetch()
+    vaultPositions.refetch()
+  }, [activeWithdrawHash, isWithdrawConfirmed])
 
   // Fetch Composer quote and run worth-it analysis
   const handleAnalyze = useCallback(async () => {
@@ -397,6 +410,32 @@ export default function Home() {
     }
   }, [address, composerQuote, currentChainId, executeRouteTransaction, switchChainAsync, writeContractAsync])
 
+  const handleWithdrawPosition = useCallback(async (position: VaultPosition) => {
+    if (!address) return
+
+    setWithdrawError(null)
+    setActiveWithdrawHash(undefined)
+    setActiveWithdrawPosition(position)
+
+    try {
+      if (currentChainId !== position.vault.chainId) {
+        await switchChainAsync({ chainId: position.vault.chainId })
+      }
+
+      const hash = await writeContractAsync({
+        address: position.vault.address as `0x${string}`,
+        abi: ERC4626_VAULT_ABI,
+        functionName: 'redeem',
+        args: [position.shares, address, address],
+        chainId: position.vault.chainId,
+      })
+
+      setActiveWithdrawHash(hash)
+    } catch (error) {
+      setWithdrawError(error instanceof Error ? error.message : 'Failed to withdraw position')
+    }
+  }, [address, currentChainId, switchChainAsync, writeContractAsync])
+
   const handleMandateSelect = (key: MandateKey) => {
     setSelectedMandate(key)
     setStrategyPrompt('')
@@ -462,7 +501,8 @@ export default function Home() {
   const showExecutionTracker = !!activeRouteHash && worthItAnalysis?.verdict === 'approved' && !(
     lifiStatus === 'DONE' && activeRouteHash && worthItAnalysis && selectedScoredVault && activeMandate
   )
-  const isBusy = isCheckingAllowance || isSwitchingChain || isApproving || isApprovalConfirming || isSending || isConfirming
+  const isWithdrawalBusy = Boolean(activeWithdrawPosition) && (isSwitchingChain || isApproving || isWithdrawConfirming)
+  const isBusy = isCheckingAllowance || isSwitchingChain || isApproving || isApprovalConfirming || isSending || isConfirming || isWithdrawConfirming
   const executeButtonLabel = isCheckingAllowance
     ? 'Checking allowance...'
     : isSwitchingChain
@@ -521,6 +561,21 @@ export default function Home() {
                   onDemoMode={() => setIsDemoMode(true)}
                 />
 
+                <VaultPositionsPanel
+                  positions={vaultPositions.positions}
+                  totalUsd={vaultPositions.totalUsd}
+                  isLoading={vaultPositions.isLoading}
+                  error={vaultPositions.error || withdrawError}
+                  activeWithdrawAddress={activeWithdrawPosition?.vault.address}
+                  isWithdrawing={isWithdrawalBusy}
+                  withdrawHash={activeWithdrawHash}
+                  onRefresh={() => {
+                    vaultPositions.refetch()
+                    balanceData.refetch()
+                  }}
+                  onWithdraw={handleWithdrawPosition}
+                />
+
                 <div className="card overflow-hidden border-cyan-400/15">
                   <div className="border-b border-white/10 bg-cyan-400/10 px-5 py-4">
                     <p className="text-xs uppercase tracking-[0.2em] text-cyan-200">Execution Guard</p>
@@ -529,6 +584,7 @@ export default function Home() {
                     {[
                       ['Wallet scan', isBalanceReady ? 'ready' : 'pending', 'text-cyan-200'],
                       ['Stablecoin positions', `${activeBalances.length}`, 'text-violet-200'],
+                      ['Earn deposits', `${vaultPositions.positions.length}`, 'text-emerald-200'],
                       ['Execution mode', isDemoMode ? 'demo' : 'wallet', 'text-emerald-200'],
                     ].map(([label, value, color]) => (
                       <div key={label} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.035] px-4 py-3">

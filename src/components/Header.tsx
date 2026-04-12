@@ -2,15 +2,41 @@
 
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { Activity, ShieldCheck, Wallet } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useAccount, useEnsName } from 'wagmi'
 
 export function Header() {
   const { address } = useAccount()
+  const [resolverName, setResolverName] = useState<string | null>(null)
   const { data: ensName } = useEnsName({
     address,
     chainId: 1,
     query: { enabled: Boolean(address) },
   })
+
+  useEffect(() => {
+    if (!address || ensName) {
+      setResolverName(null)
+      return
+    }
+
+    let cancelled = false
+
+    async function resolveName() {
+      try {
+        const response = await fetch(`/api/ens?address=${address}`)
+        const data = await response.json()
+        if (!cancelled && typeof data?.name === 'string') setResolverName(data.name)
+      } catch {
+        if (!cancelled) setResolverName(null)
+      }
+    }
+
+    resolveName()
+    return () => {
+      cancelled = true
+    }
+  }, [address, ensName])
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0a]/78 backdrop-blur-2xl">
@@ -47,7 +73,7 @@ export function Header() {
                 ? 'Connect Wallet'
                 : chain.unsupported
                   ? 'Wrong Network'
-                  : ensName || account.displayName
+                  : ensName || resolverName || account.displayName
 
               return (
                 <button
