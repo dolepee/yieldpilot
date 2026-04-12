@@ -4,7 +4,7 @@ import { http } from 'wagmi'
 
 export const config = getDefaultConfig({
   appName: 'YieldPilot',
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || 'yieldpilot-demo',
+  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim() || 'yieldpilot-demo',
   chains: [mainnet, base, arbitrum, optimism],
   transports: {
     [mainnet.id]: http(),
