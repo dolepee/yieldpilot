@@ -13,8 +13,10 @@ import { RecommendationCard } from '@/components/RecommendationCard'
 import { WorthItCard } from '@/components/WorthItCard'
 import { YieldStoryCard } from '@/components/YieldStoryCard'
 import { ExecutionTracker } from '@/components/ExecutionTracker'
+import { ScenarioSimulator } from '@/components/ScenarioSimulator'
 import { useEarnData } from '@/hooks/useEarnData'
 import { useStablecoinBalances, type TokenBalance } from '@/hooks/useStablecoinBalances'
+import { usePortfolioVerification } from '@/hooks/usePortfolioVerification'
 import { MANDATES, type MandateConfig, type MandateKey } from '@/lib/mandates'
 import { recommend, type RecommendationResult, type ScoredVault } from '@/lib/ranking'
 import { analyzeWorthIt, type WorthItAnalysis } from '@/lib/worth-it'
@@ -473,6 +475,7 @@ export default function Home() {
           ? 'Confirm route...'
           : 'Executing...'
   const showStoryCard = lifiStatus === 'DONE' && activeRouteHash && worthItAnalysis && selectedScoredVault && activeMandate
+  const portfolioVerification = usePortfolioVerification(address, selectedScoredVault?.vault, Boolean(showStoryCard))
 
   return (
     <>
@@ -616,13 +619,16 @@ export default function Home() {
 
             {/* Screen 4: Worth-It Analysis */}
             {worthItAnalysis && activeMandate && !showExecutionTracker && !showStoryCard && (
-              <WorthItCard
-                analysis={worthItAnalysis}
-                mandateName={activeMandateName ?? 'Custom mandate'}
-                onExecute={worthItAnalysis.verdict === 'approved' ? handleExecute : undefined}
-                isExecuting={isBusy}
-                actionLabel={executeButtonLabel}
-              />
+              <div className="space-y-6">
+                <WorthItCard
+                  analysis={worthItAnalysis}
+                  mandateName={activeMandateName ?? 'Custom mandate'}
+                  onExecute={worthItAnalysis.verdict === 'approved' ? handleExecute : undefined}
+                  isExecuting={isBusy}
+                  actionLabel={executeButtonLabel}
+                />
+                <ScenarioSimulator analysis={worthItAnalysis} />
+              </div>
             )}
 
             {/* Worth-it refusal story card */}
@@ -633,6 +639,10 @@ export default function Home() {
                 vaultName={selectedScoredVault.vault.name}
                 protocolName={selectedScoredVault.vault.protocol.name}
                 chainId={selectedScoredVault.vault.chainId}
+                vaultAddress={selectedScoredVault.vault.address}
+                vaultNetwork={selectedScoredVault.vault.network}
+                protocolUrl={selectedScoredVault.vault.protocol.url}
+                isRedeemable={selectedScoredVault.vault.isRedeemable}
               />
             )}
 
@@ -660,6 +670,11 @@ export default function Home() {
                 protocolName={selectedScoredVault!.vault.protocol.name}
                 chainId={selectedScoredVault!.vault.chainId}
                 txHash={activeRouteHash}
+                vaultAddress={selectedScoredVault!.vault.address}
+                vaultNetwork={selectedScoredVault!.vault.network}
+                protocolUrl={selectedScoredVault!.vault.protocol.url}
+                isRedeemable={selectedScoredVault!.vault.isRedeemable}
+                portfolioVerification={portfolioVerification}
               />
             )}
 

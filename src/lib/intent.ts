@@ -110,7 +110,7 @@ export function normalizeParsedIntent(
     ? clamp(Number(adjustedPayload.minVaultApyPct), 0, 100)
     : baseMandate.minVaultApyPct ?? 0
   const maxBreakEvenDays = explicitBreakEvenDays !== null
-    ? clamp(Math.round(explicitBreakEvenDays), 3, 45)
+    ? clamp(Math.round(explicitBreakEvenDays), 3, 180)
     : baseMandate.maxBreakEvenDays
   const minApyImprovementPct = explicitApyImprovementPct !== null
     ? clamp(explicitApyImprovementPct, 0.25, 10)

@@ -32,6 +32,16 @@ export const DEMO_BALANCES: TokenBalance[] = [
     decimals: 6,
     usdValue: 500,
   },
+  {
+    chainId: 10, // Optimism
+    chainName: 'Optimism',
+    token: 'USDC',
+    address: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
+    balance: BigInt(750_000000),
+    formatted: '750.00',
+    decimals: 6,
+    usdValue: 750,
+  },
 ]
 
 export const DEMO_TOTAL_USD = DEMO_BALANCES.reduce((sum, b) => sum + b.usdValue, 0)

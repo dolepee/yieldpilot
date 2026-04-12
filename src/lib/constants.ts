@@ -2,11 +2,11 @@ import { mainnet, base, arbitrum, optimism } from 'wagmi/chains'
 
 export const TARGET_CHAINS = [mainnet, base, arbitrum, optimism] as const
 
-export const CHAIN_META: Record<number, { name: string; logo: string; color: string }> = {
-  [mainnet.id]: { name: 'Ethereum', logo: '/chains/ethereum.svg', color: '#627EEA' },
-  [base.id]: { name: 'Base', logo: '/chains/base.svg', color: '#0052FF' },
-  [arbitrum.id]: { name: 'Arbitrum', logo: '/chains/arbitrum.svg', color: '#28A0F0' },
-  [optimism.id]: { name: 'Optimism', logo: '/chains/optimism.svg', color: '#FF0420' },
+export const CHAIN_META: Record<number, { name: string; logo: string; color: string; explorer: string }> = {
+  [mainnet.id]: { name: 'Ethereum', logo: '/chains/ethereum.svg', color: '#627EEA', explorer: 'https://etherscan.io' },
+  [base.id]: { name: 'Base', logo: '/chains/base.svg', color: '#0052FF', explorer: 'https://basescan.org' },
+  [arbitrum.id]: { name: 'Arbitrum', logo: '/chains/arbitrum.svg', color: '#28A0F0', explorer: 'https://arbiscan.io' },
+  [optimism.id]: { name: 'Optimism', logo: '/chains/optimism.svg', color: '#FF0420', explorer: 'https://optimistic.etherscan.io' },
 }
 
 // Stablecoin contract addresses per chain

@@ -2,8 +2,16 @@
 
 import { ConnectButton } from '@rainbow-me/rainbowkit'
 import { Activity, ShieldCheck, Wallet } from 'lucide-react'
+import { useAccount, useEnsName } from 'wagmi'
 
 export function Header() {
+  const { address } = useAccount()
+  const { data: ensName } = useEnsName({
+    address,
+    chainId: 1,
+    query: { enabled: Boolean(address) },
+  })
+
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0a0a0a]/78 backdrop-blur-2xl">
       <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6">
@@ -39,7 +47,7 @@ export function Header() {
                 ? 'Connect Wallet'
                 : chain.unsupported
                   ? 'Wrong Network'
-                  : account.displayName
+                  : ensName || account.displayName
 
               return (
                 <button

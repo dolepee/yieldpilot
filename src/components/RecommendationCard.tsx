@@ -2,6 +2,7 @@
 
 import type { RecommendationResult, ScoredVault } from '@/lib/ranking'
 import { CHAIN_META } from '@/lib/constants'
+import { RouteDuelPanel } from './RouteDuelPanel'
 
 interface RecommendationCardProps {
   result: RecommendationResult
@@ -12,6 +13,10 @@ interface RecommendationCardProps {
   onSelectCandidate: (candidate: ScoredVault) => void
   onExecute?: () => void
   isLoadingQuote?: boolean
+}
+
+function optionKey(candidate: ScoredVault): string {
+  return `${candidate.vault.slug}-${candidate.vault.chainId}-${candidate.matchedBalance.chainId}-${candidate.matchedBalance.token}`
 }
 
 function RefusalCard({ result, mandateName }: { result: RecommendationResult; mandateName: string }) {
@@ -61,6 +66,8 @@ function CandidateOption({
 }) {
   const tvl = Number(candidate.vault.analytics.tvl.usd)
   const chainMeta = CHAIN_META[candidate.vault.chainId]
+  const sourceMeta = CHAIN_META[candidate.matchedBalance.chainId]
+  const isSameChain = candidate.matchedBalance.chainId === candidate.vault.chainId
 
   return (
     <button
@@ -84,6 +91,11 @@ function CandidateOption({
           </div>
           <p className="mt-1 text-xs text-white/40">
             {candidate.vault.protocol.name} · ${tvl >= 1_000_000 ? `${(tvl / 1_000_000).toFixed(0)}M` : `${(tvl / 1_000).toFixed(0)}K`} TVL
+          </p>
+          <p className="mt-1 text-xs text-white/35">
+            {isSameChain
+              ? `Same-chain on ${chainMeta?.name ?? candidate.vault.network}`
+              : `Bridge ${sourceMeta?.name ?? candidate.matchedBalance.chainName} -> ${chainMeta?.name ?? candidate.vault.network}`}
           </p>
         </div>
         <div className="text-right">
@@ -139,6 +151,14 @@ export function RecommendationCard({
         </div>
       </div>
 
+      <div className="mb-5">
+        <RouteDuelPanel
+          candidates={result.candidates}
+          selectedCandidate={selectedCandidate}
+          onSelectCandidate={onSelectCandidate}
+        />
+      </div>
+
       {/* Vault details */}
       <div className="rounded-md border border-white/10 bg-[#121212] p-4 mb-4 space-y-3">
         <div className="flex items-center justify-between">
@@ -164,6 +184,9 @@ export function RecommendationCard({
             {isSameChain && (
               <span className="text-xs px-1.5 py-0.5 rounded bg-[#00d4aa]/10 text-[#00d4aa]">same-chain</span>
             )}
+            {!isSameChain && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-400/10 text-cyan-200">bridge route</span>
+            )}
           </div>
         </div>
         <div className="flex items-center justify-between">
@@ -181,6 +204,12 @@ export function RecommendationCard({
           <span className="text-sm text-white/40">Selected amount</span>
           <span className="font-mono text-sm font-medium text-white">
             {depositAmount || '0'} {matchedBalance.token}
+          </span>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-white/40">Exit awareness</span>
+          <span className={`text-sm font-medium ${vault.isRedeemable ? 'text-[#00d4aa]' : 'text-white/50'}`}>
+            {vault.isRedeemable ? 'Redeemable vault' : 'Redeem support not advertised'}
           </span>
         </div>
       </div>
@@ -252,9 +281,9 @@ export function RecommendationCard({
           <div className="grid gap-2">
             {result.candidates.slice(0, 5).map((candidate) => (
               <CandidateOption
-                key={`${candidate.vault.slug}-${candidate.matchedBalance.chainId}-${candidate.matchedBalance.token}`}
+                key={optionKey(candidate)}
                 candidate={candidate}
-                isSelected={candidate.vault.slug === selectedCandidate.vault.slug && candidate.matchedBalance.chainId === selectedCandidate.matchedBalance.chainId}
+                isSelected={optionKey(candidate) === optionKey(selectedCandidate)}
                 onSelect={() => onSelectCandidate(candidate)}
               />
             ))}
