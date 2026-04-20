@@ -1,5 +1,11 @@
 import { EARN_API_BASE } from './constants'
 
+function authHeaders(): HeadersInit {
+  const apiKey = process.env.LIFI_API_KEY
+  if (!apiKey) throw new Error('LIFI_API_KEY not configured')
+  return { 'x-lifi-api-key': apiKey }
+}
+
 export interface VaultApy {
   base: number
   reward: number | null
@@ -70,8 +76,8 @@ export async function fetchAllVaults(chainId?: number): Promise<Vault[]> {
     if (chainId) params.set('chainId', String(chainId))
     if (cursor) params.set('cursor', cursor)
 
-    const url = `${EARN_API_BASE}/v1/earn/vaults${params.toString() ? '?' + params.toString() : ''}`
-    const res = await fetch(url)
+    const url = `${EARN_API_BASE}/v1/vaults${params.toString() ? '?' + params.toString() : ''}`
+    const res = await fetch(url, { headers: authHeaders() })
     if (!res.ok) throw new Error(`Earn API error: ${res.status}`)
 
     const data: VaultsResponse = await res.json()
@@ -84,28 +90,28 @@ export async function fetchAllVaults(chainId?: number): Promise<Vault[]> {
 
 // Fetch single vault detail
 export async function fetchVaultDetail(network: string, address: string): Promise<Vault> {
-  const res = await fetch(`${EARN_API_BASE}/v1/earn/vaults/${network}/${address}`)
+  const res = await fetch(`${EARN_API_BASE}/v1/vaults/${network}/${address}`, { headers: authHeaders() })
   if (!res.ok) throw new Error(`Vault detail error: ${res.status}`)
   return res.json()
 }
 
 // Fetch supported chains
 export async function fetchChains(): Promise<EarnChain[]> {
-  const res = await fetch(`${EARN_API_BASE}/v1/earn/chains`)
+  const res = await fetch(`${EARN_API_BASE}/v1/chains`, { headers: authHeaders() })
   if (!res.ok) throw new Error(`Chains error: ${res.status}`)
   return res.json()
 }
 
 // Fetch supported protocols
 export async function fetchProtocols(): Promise<EarnProtocol[]> {
-  const res = await fetch(`${EARN_API_BASE}/v1/earn/protocols`)
+  const res = await fetch(`${EARN_API_BASE}/v1/protocols`, { headers: authHeaders() })
   if (!res.ok) throw new Error(`Protocols error: ${res.status}`)
   return res.json()
 }
 
 // Fetch portfolio positions
 export async function fetchPortfolio(userAddress: string) {
-  const res = await fetch(`${EARN_API_BASE}/v1/earn/portfolio/${userAddress}/positions`)
+  const res = await fetch(`${EARN_API_BASE}/v1/portfolio/${userAddress}/positions`, { headers: authHeaders() })
   if (!res.ok) throw new Error(`Portfolio error: ${res.status}`)
   return res.json()
 }

@@ -30,9 +30,10 @@ The core differentiator is the combination of:
 
 ### Earn Data API (earn.li.fi)
 
-- `GET /v1/earn/vaults` with full pagination across all 659+ vaults
-- `GET /v1/earn/chains` for supported chain metadata
-- `GET /v1/earn/protocols` for protocol metadata and maturity scoring
+- `GET /v1/vaults` with full pagination across all 659+ vaults
+- `GET /v1/chains` for supported chain metadata
+- `GET /v1/protocols` for protocol metadata and maturity scoring
+- All requests are authed with `x-lifi-api-key` (same key as the Composer routes)
 - Proxied through `GET /api/earn` in the app so the browser does not depend on direct third-party API access
 
 ### Composer (li.quest)
